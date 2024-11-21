@@ -12,7 +12,7 @@ static bool have_address = true;
 static char address[16];
 static int cur[] = {0, 0, 0, 0};
 static int min[] = {192, 168, 1, 100};
-static int max[] = {192, 168, 1, 200};
+static int max[] = {192, 168, 1, 300};
 
 static int n_found = 0;
 static int n_attempted = 0;
