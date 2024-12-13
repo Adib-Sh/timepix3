@@ -215,11 +215,11 @@ libkatherine.katherine_get_chip_id.argtypes = [ctypes.POINTER(KatherineDevice), 
 libkatherine.katherine_get_chip_id.restype = ctypes.c_int
 
 # Get status
-libkatherine.katherine_get_readout_status.argtypes = [ctypes.POINTER(KatherineDevice), ctypes.POINTER(ctypes.c_int)]
+libkatherine.katherine_get_readout_status.argtypes = [ctypes.POINTER(KatherineDevice), ctypes.POINTER(KatherineReadoutStatus)]
 libkatherine.katherine_get_readout_status.restype = ctypes.c_int
 
 # Get communications status
-libkatherine.katherine_get_comm_status.argtypes = [ctypes.POINTER(KatherineDevice), ctypes.POINTER(ctypes.c_int)]
+libkatherine.katherine_get_comm_status.argtypes = [ctypes.POINTER(KatherineDevice), ctypes.POINTER(KatherineCommStatus)]
 libkatherine.katherine_get_comm_status.restype = ctypes.c_int
 
 # Get readout temperature
