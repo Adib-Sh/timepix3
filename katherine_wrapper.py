@@ -397,6 +397,14 @@ if result == 0:
     print(f"ADC Voltage: {adc_voltage.value} V")
 else:
     print(f"Failed to get ADC voltage. Error code: {result}")
+
+
+result = libkatherine.katherine_device_fini(ctypes.byref(device))
+
+if result == 0:
+    print("Device connection closed successfully")
+else:
+    print(f"Error closing device connection! Error code: {result}")
 '''
 # Configure the device
 result = libkatherine.katherine_configure(ctypes.byref(device), ctypes.byref(config))
