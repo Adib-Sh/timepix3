@@ -299,6 +299,10 @@ libkatherine.katherine_perform_digital_test.argtypes = [ctypes.POINTER(Katherine
 libkatherine.katherine_perform_digital_test.restype = ctypes.c_int
 
 
+
+    
+
+'''
 # Initialize px_config test
 def load_bmc_config(file_path):
     px_config = KatherinePxConfig()
@@ -318,84 +322,88 @@ def load_bpc_config(file_path):
         print(f"Failed to load BPC configuration from {file_path}. Error code: {result}")
         return px_config
 
-
-
-# Connect to the device
-device = KatherineDevice()
-config = KatherineConfig()
-device_ip = b"192.168.1.218"  # Device IP address
 bmc_file = "bmc_file.bmc" # Add config file path
 px_config_bmc = load_bmc_config(bmc_file)
+
+'''
+# Connect to the device
+device = KatherineDevice()
+#config = KatherineConfig()
+device_ip = b"192.168.1.218"  # Device IP address
+
+
 
 # Initialize the device
 result = libkatherine.katherine_device_init(ctypes.byref(device), device_ip)
 if result != 0:
-    print(f"Failed to initialize device!")
+    print(f"Failed to initialize device! Error code: {result}")
 else:
-    print("Failed to initialize device!")
+    print("Device initialized successfully.")
 
-    # Get the chip ID 
-    chip_id = ctypes.create_string_buffer(16)
-    result = libkatherine.katherine_get_chip_id(ctypes.byref(device), chip_id)
-    if result == 0:
-        print(f"Device Serial Number (Chip ID): {chip_id.value.decode()}")
-    else:
-        print(f"Failed to get chip ID. Error code: {result}")
+    
+# Get the chip ID 
+chip_id = ctypes.create_string_buffer(16)
+result = libkatherine.katherine_get_chip_id(ctypes.byref(device), chip_id)
+if result == 0:
+    print(f"Device Serial Number (Chip ID): {chip_id.value.decode()}")
+else:
+    print(f"Failed to get chip ID. Error code: {result}")
 
-    # Get Readout Status
-    readout_status = KatherineReadoutStatus()
-    result = libkatherine.katherine_get_readout_status(ctypes.byref(device), ctypes.byref(readout_status))
-    if result == 0:
-        print(f"Readout Status: HW Type {readout_status.hw_type}, HW Revision {readout_status.hw_revision}, "
-              f"Serial Number {readout_status.hw_serial_number}, FW Version {readout_status.fw_version}")
-    else:
-        print(f"Failed to get readout status. Error code: {result}")
+# Get Readout Status
+readout_status = KatherineReadoutStatus()
+result = libkatherine.katherine_get_readout_status(ctypes.byref(device), ctypes.byref(readout_status))
+if result == 0:
+    print(f"Readout Status: HW Type {readout_status.hw_type}, HW Revision {readout_status.hw_revision}, "
+            f"Serial Number {readout_status.hw_serial_number}, FW Version {readout_status.fw_version}")
+else:
+    print(f"Failed to get readout status. Error code: {result}")
 
-    # Get Comm Status
-    comm_status = KatherineCommStatus()
-    result = libkatherine.katherine_get_comm_status(ctypes.byref(device), ctypes.byref(comm_status))
-    if result == 0:
-        print(f"Comm Status: Comm Lines Mask {comm_status.comm_lines_mask}, Data Rate {comm_status.data_rate}, "
-              f"Chip Detected {comm_status.chip_detected}")
-    else:
-        print(f"Failed to get communication status. Error code: {result}")
+# Get Comm Status
+comm_status = KatherineCommStatus()
+result = libkatherine.katherine_get_comm_status(ctypes.byref(device), ctypes.byref(comm_status))
+if result == 0:
+    print(f"Comm Status: Comm Lines Mask {comm_status.comm_lines_mask}, Data Rate {comm_status.data_rate}, "
+            f"Chip Detected {comm_status.chip_detected}")
+else:
+    print(f"Failed to get communication status. Error code: {result}")
 
-    # Get Readout Temperature
-    readout_temp = ctypes.c_float()
-    result = libkatherine.katherine_get_readout_temperature(ctypes.byref(device), ctypes.byref(readout_temp))
-    if result == 0:
-        print(f"Readout Temperature: {readout_temp.value} °C")
-    else:
-        print("Error retrieving readout temperature.")
+# Get Readout Temperature
+readout_temp = ctypes.c_float()
+result = libkatherine.katherine_get_readout_temperature(ctypes.byref(device), ctypes.byref(readout_temp))
+if result == 0:
+    print(f"Readout Temperature: {readout_temp.value} °C")
+else:
+    print("Error retrieving readout temperature.")
 
-    # Get Sensor Temperature
-    sensor_temp = ctypes.c_float()
-    result = libkatherine.katherine_get_sensor_temperature(ctypes.byref(device), ctypes.byref(sensor_temp))
-    if result == 0:
-        print(f"Sensor Temperature: {sensor_temp.value} °C")
-    else:
-        print("Error retrieving sensor temperature.")
+# Get Sensor Temperature
+sensor_temp = ctypes.c_float()
+result = libkatherine.katherine_get_sensor_temperature(ctypes.byref(device), ctypes.byref(sensor_temp))
+if result == 0:
+    print(f"Sensor Temperature: {sensor_temp.value} °C")
+else:
+    print("Error retrieving sensor temperature.")
 
-    # Digital Test
-    result = libkatherine.katherine_perform_digital_test(ctypes.byref(device))
-    if result == 0:
-        print("Digital test passed.")
-    else:
-        print("Digital test failed.")
+# Digital Test
+result = libkatherine.katherine_perform_digital_test(ctypes.byref(device))
+if result == 0:
+    print("Digital test passed.")
+else:
+    print("Digital test failed.")
 
-    # Get ADC Voltage 
-    adc_voltage = ctypes.c_float()
-    result = libkatherine.katherine_get_adc_voltage(ctypes.byref(device), 0, ctypes.byref(adc_voltage))
-    if result == 0:
-        print(f"ADC Voltage: {adc_voltage.value} V")
-    else:
-        print(f"Failed to get ADC voltage. Error code: {result}")
-
-    # Configure the device
-    result = libkatherine.katherine_configure(ctypes.byref(device), ctypes.byref(config))
-    if result == 0:
-        print("Device configured successfully.")
-    else:
-        print(f"Failed to configure device. Error code: {result}")
+# Get ADC Voltage 
+adc_voltage = ctypes.c_float()
+result = libkatherine.katherine_get_adc_voltage(ctypes.byref(device), 0, ctypes.byref(adc_voltage))
+if result == 0:
+    print(f"ADC Voltage: {adc_voltage.value} V")
+else:
+    print(f"Failed to get ADC voltage. Error code: {result}")
+'''
+# Configure the device
+result = libkatherine.katherine_configure(ctypes.byref(device), ctypes.byref(config))
+if result == 0:
+    print("Device configured successfully.")
+else:
+    print(f"Failed to configure device. Error code: {result}")
 # Clean up and finalize the device connection
-libkatherine.katherine_device_fini(ctypes.byref(device))
+#libkatherine.katherine_device_fini(ctypes.byref(device))
+'''
