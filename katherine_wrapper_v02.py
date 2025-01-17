@@ -1,7 +1,7 @@
 import ctypes
 import os
 from enum import Enum
-
+from config_loader import PixelConfigLoader, FileFormat
 
 # Function to check if a function exists in the shared library
 def check_function_exists(lib, func_name):
@@ -37,6 +37,12 @@ check_function_exists(libkatherine, 'katherine_device_fini')
 check_function_exists(libkatherine, 'katherine_px_config_load_bmc_file')
 check_function_exists(libkatherine, 'katherine_px_config_load_bpc_file')
 check_function_exists(libkatherine, 'katherine_set_all_pixel_config')
+check_function_exists(libkatherine, 'katherine_set_acq_time')
+check_function_exists(libkatherine, 'katherine_set_acq_mode')
+check_function_exists(libkatherine, 'katherine_set_no_frames')
+check_function_exists(libkatherine, 'katherine_set_bias')
+check_function_exists(libkatherine, 'katherine_set_seq_readout_start')
+check_function_exists(libkatherine, 'katherine_acquisition_setup')
 
 
 
@@ -73,10 +79,19 @@ class KatherineCommStatus(ctypes.Structure):
         ("chip_detected", ctypes.c_bool)
     ]
 
+# Structures for BMC and BPC configuration
+class KatherineBMC(ctypes.Structure):
+    _fields_ = [("px_config", ctypes.c_ubyte * 65536)]
+
+
+class KatherineBPC(ctypes.Structure):
+    _fields_ = [("px_config", ctypes.c_ubyte * 65536)]
+
+
 # Define KatherinePxConfig structure
 class KatherinePxConfig(ctypes.Structure):
     _fields_ = [("words", ctypes.c_uint32 * 16384)]
-    
+
 
 # Function to initialize the device
 def initialize_device(device_ip):
@@ -166,17 +181,40 @@ def finalize_device(device):
         print(f"Error closing device connection! Error code: {result}")
 
 
+# Function to load BMC file
+def load_bmc_file(device, file_path):
+    px_config = KatherinePxConfig()  # Create a new instance of the structure
+    result = libkatherine.katherine_px_config_load_bmc_file(ctypes.byref(px_config), file_path.encode('utf-8'))
+    if result == 0:
+        print("BMC file loaded successfully.")
+    else:
+        print(f"Failed to load BMC file. Error code: {result}")
+
+
+# Function to load BPC file
+def load_bpc_file(device, file_path):
+    px_config = KatherinePxConfig()  # Create a new instance of the structure
+    result = libkatherine.katherine_px_config_load_bpc_file(ctypes.byref(px_config), file_path.encode('utf-8'))
+    if result == 0:
+        print("BPC file loaded successfully.")
+    else:
+        print(f"Failed to load BPC file. Error code: {result}")
+
+
 # Main logic
 device_ip = b"192.168.1.218"  # Device IP address
 bmc_file_path = './chipconfig.bmc'
 try:
     device = initialize_device(device_ip)
+    load_bmc_file(device, bmc_file_path)
     get_chip_id(device)
     get_readout_status(device)
     get_comm_status(device)
     get_temperatures(device)
     perform_digital_test(device)
     get_adc_voltage(device)
+
+
 
 finally:
     finalize_device(device)
