@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.21)
 project(katherine VERSION 0.1 LANGUAGES C CXX)
 
-option(BUILD_CXX        "build C++ binaries"        ON)
+option(BUILD_CXX        "build C++ binaries"        OFF)
 option(BUILD_PYTHON     "build Python 3 bindings"   OFF)
 option(BUILD_EXAMPLES   "build example programs"    ON)
 
