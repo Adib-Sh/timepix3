@@ -4,14 +4,19 @@
 #include <string.h>
 #include <unistd.h>
 #include <katherine/katherine.h>
-#include <hdf5.h> // Include HDF5 header
+#include <hdf5.h>
 
-static const char *remote_addr = "192.168.1.218";
-typedef katherine_px_f_toa_tot_t px_t;
+
+
+static const char *remote_addr = "192.168.1.218"; //Device IP address
+typedef katherine_px_f_toa_tot_t px_t; //ACQ mode (Modes in px.h) Here we import all modes
 
 // Global variables for configuration and modes
-static uint64_t n_hits;
+static uint64_t n_hits; //
 static hid_t hdf5_file_id = -1; // HDF5 file identifier, initialized to invalid
+
+//scan modes. NOT READY YET!
+/*
 static bool energy_spectrum_enabled = false;
 static bool position_sensitive_enabled = false;
 static bool time_resolved_enabled = false;
@@ -20,32 +25,40 @@ static bool pulse_height_analysis_enabled = false;
 static bool coincidence_detection_enabled = false;
 static bool dead_time_measurement_enabled = false;
 static bool calibration_scan_enabled = false;
+*/
 
 // Function prototypes
 void configure(katherine_config_t *config);
 void frame_started(void *user_ctx, int frame_idx);
 void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_frame_info_t *info);
 void pixels_received(void *user_ctx, const void *px, size_t count);
-void print_chip_id(katherine_device_t *device);
+void get_chip_id(katherine_device_t *device);
+void get_comm_status(katherine_device_t *device);
+void get_readout_temp(katherine_device_t *device);
+void get_sensor_temp(katherine_device_t *device);
+void digital_test(katherine_device_t *device);
+void adc_voltage(katherine_device_t *device);
 void run_acquisition(katherine_device_t *dev, const katherine_config_t *c);
 void enable_scanning_modes();
-void process_energy_spectrum(const px_t *px, size_t count);
-void process_position_sensitive(const px_t *px, size_t count);
-void process_time_resolved(const px_t *px, size_t count);
-void process_triggered_acquisition(const px_t *px, size_t count);
-void process_pulse_height_analysis(const px_t *px, size_t count);
-void process_coincidence_detection(const px_t *px, size_t count);
-void process_dead_time_measurement(const px_t *px, size_t count);
-void process_calibration_scan(const px_t *px, size_t count);
+//void process_energy_spectrum(const px_t *px, size_t count);
+//void process_position_sensitive(const px_t *px, size_t count);
+//void process_time_resolved(const px_t *px, size_t count);
+//void process_triggered_acquisition(const px_t *px, size_t count);
+//void process_pulse_height_analysis(const px_t *px, size_t count);
+//void process_coincidence_detection(const px_t *px, size_t count);
+//void process_dead_time_measurement(const px_t *px, size_t count);
+//void process_calibration_scan(const px_t *px, size_t count);
 
 int main(int argc, char *argv[]) {
-    katherine_config_t c;
+    // Loading config
+    katherine_config_t c; 
     configure(&c);
 
+    // Initializing device
     int res;
-    katherine_device_t device;
+    katherine_device_t device; 
 
-    // Create an HDF5 file
+    // Creating an HDF5 file
     hdf5_file_id = H5Fcreate("output.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (hdf5_file_id < 0) {
         printf("Failed to create HDF5 file.\n");
@@ -69,28 +82,33 @@ int main(int argc, char *argv[]) {
     }
     printf("Connected successfully.\n");
 
-    // Prompt user to enable scanning modes
-    enable_scanning_modes();
-
-    print_chip_id(&device);
+    
+    // enable_scanning_modes(); // enabling scan modes
+    get_comm_status(&device);
+    get_chip_id(&device);
+    get_readout_temp(&device);
+    get_sensor_temp(&device);
+    digital_test(&device);
+    adc_voltage(&device);//check if bias is set before adc
     run_acquisition(&device, &c);
 
+    // Closing device
     katherine_device_fini(&device);
+
+    // Close HDF5 file after acquisition
     if (hdf5_file_id >= 0) {
-        H5Fclose(hdf5_file_id); // Close HDF5 file after acquisition
+        H5Fclose(hdf5_file_id); 
     }
     return 0;
 }
 
-void
-configure(katherine_config_t *config)
-{
-    // For now, these constants are hard-coded.
-    // This configuration will produce meaningful results only for: K7-W0005
+
+void configure(katherine_config_t *config) {
+    // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
     config->acq_time                = 10e9; // ns
     config->no_frames               = 1;
-    config->bias                    = 230; // V
+    config->bias                    = -130; // V
 
     config->delayed_start           = false;
 
@@ -133,6 +151,7 @@ configure(katherine_config_t *config)
         exit(1);
     }
 }
+
 
 void frame_started(void *user_ctx, int frame_idx) {
     n_hits = 0;
@@ -193,7 +212,7 @@ void frame_started(void *user_ctx, int frame_idx) {
         return;
     }
 
-    // Close resources
+    // Close file
     H5Pclose(plist_id);
     H5Sclose(dataspace_id);
     H5Dclose(dataset_id);
@@ -257,6 +276,8 @@ void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_
 }
 
 void pixels_received(void *user_ctx, const void *px, size_t count) {
+
+    //CHECK MASKING AT crd.h
     n_hits += count;
 
     const px_t *dpx = (const px_t *) px;
@@ -305,15 +326,28 @@ void pixels_received(void *user_ctx, const void *px, size_t count) {
         return;
     }
 
-    // Extend the dataset to accommodate new data
+    // Get the current dimensions of the dataset
     hsize_t current_dims[2];
     H5Sget_simple_extent_dims(filespace_id, current_dims, NULL);
+
+    // Extend the dataset to accommodate new data
     hsize_t new_dims[2] = {current_dims[0] + count, 5};
     H5Dset_extent(dataset_id, new_dims);
 
+    // Reopen the filespace to reflect the new dimensions
+    H5Sclose(filespace_id);
+    filespace_id = H5Dget_space(dataset_id);
+    if (filespace_id < 0) {
+        printf("Failed to get updated filespace for dataset.\n");
+        H5Dclose(dataset_id);
+        H5Gclose(group_id);
+        free(data);
+        return;
+    }
+
     // Select the hyperslab for writing
-    hsize_t start[2] = {current_dims[0], 0};
-    hsize_t count_hslab[2] = {count, 5};
+    hsize_t start[2] = {current_dims[0], 0}; // Start at the end of the existing data
+    hsize_t count_hslab[2] = {count, 5};     // Write `count` rows and 5 columns
     hid_t memspace_id = H5Screate_simple(2, count_hslab, NULL);
     if (memspace_id < 0) {
         printf("Failed to create memory space.\n");
@@ -324,7 +358,16 @@ void pixels_received(void *user_ctx, const void *px, size_t count) {
         return;
     }
 
-    H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, start, NULL, count_hslab, NULL);
+    // Select the hyperslab in the dataset's filespace
+    if (H5Sselect_hyperslab(filespace_id, H5S_SELECT_SET, start, NULL, count_hslab, NULL) < 0) {
+        printf("Failed to select hyperslab for writing.\n");
+        H5Sclose(memspace_id);
+        H5Sclose(filespace_id);
+        H5Dclose(dataset_id);
+        H5Gclose(group_id);
+        free(data);
+        return;
+    }
 
     // Write the data
     if (H5Dwrite(dataset_id, H5T_NATIVE_INT, memspace_id, filespace_id, H5P_DEFAULT, data) < 0) {
@@ -338,6 +381,7 @@ void pixels_received(void *user_ctx, const void *px, size_t count) {
     H5Dclose(dataset_id);
     H5Gclose(group_id);
 
+    /* EDIT LATER
     // Process additional scanning modes if enabled
     if (energy_spectrum_enabled) process_energy_spectrum(dpx, count);
     if (position_sensitive_enabled) process_position_sensitive(dpx, count);
@@ -347,9 +391,11 @@ void pixels_received(void *user_ctx, const void *px, size_t count) {
     if (coincidence_detection_enabled) process_coincidence_detection(dpx, count);
     if (dead_time_measurement_enabled) process_dead_time_measurement(dpx, count);
     if (calibration_scan_enabled) process_calibration_scan(dpx, count);
+    */
 }
 
-void print_chip_id(katherine_device_t *device) {
+
+void get_chip_id(katherine_device_t *device) {
     char chip_id[KATHERINE_CHIP_ID_STR_SIZE];
     int res = katherine_get_chip_id(device, chip_id);
     if (res != 0) {
@@ -374,6 +420,68 @@ void print_chip_id(katherine_device_t *device) {
     }
 
     H5Gclose(root_group_id);
+}
+
+void get_comm_status(katherine_device_t *device) {
+    katherine_comm_status_t comm_status;
+    int res = katherine_get_comm_status(device, &comm_status);
+    if (res != 0) {
+        printf("cannot get comm status.\n");
+        printf("Reason: %s\n", strerror(res));
+        exit(8);
+    }
+    printf("Comm Status:\n");
+    printf("  Communication Lines Mask: 0x%x\n", comm_status.comm_lines_mask);
+    printf("  Data Rate: %u Mbps\n", comm_status.data_rate);
+    printf("  Chip Detected: %s\n", comm_status.chip_detected ? "Yes" : "No");
+}
+
+void get_readout_temp(katherine_device_t *device) {
+    float temperature;
+    int res = katherine_get_readout_temperature(device, &temperature);
+    if (res != 0) {
+        printf("cannot get readout temperature.\n");
+        printf("Reason: %s\n", strerror(res));
+        exit(8);
+    }
+    printf("Readout temperature: %.2f°C\n", temperature);
+
+}
+
+void get_sensor_temp(katherine_device_t *device) {
+    float temperature;
+    int res = katherine_get_sensor_temperature(device, &temperature);
+    if (res != 0) {
+        printf("cannot get sensor temperature.\n");
+        printf("Reason: %s\n", strerror(res));
+        exit(9);
+    }
+    printf("Sensor temperature: %.2f°C\n", temperature);
+
+}
+
+void digital_test(katherine_device_t *device)  {
+    int res = katherine_perform_digital_test(device);
+    if (res != 0) {
+        printf("Digital test failed!\n");
+        printf("Reason: %s\n", strerror(res));
+        exit(10);
+    }
+    printf("Digital test passed.\n");
+
+}
+
+void adc_voltage(katherine_device_t *device) {
+    unsigned char channel_id = 2;
+    float voltage;
+    int res = katherine_get_adc_voltage(device, channel_id, &voltage);
+    if (res != 0) {
+        printf("ADC voltage test failed!\n");
+        printf("Reason: %s\n", strerror(res));
+        exit(10);
+    }
+    printf("ADC voltage: %f on channel %d\n", voltage, channel_id);
+
 }
 
 void run_acquisition(katherine_device_t *dev, const katherine_config_t *c) {
@@ -424,11 +532,11 @@ void run_acquisition(katherine_device_t *dev, const katherine_config_t *c) {
 
 void enable_scanning_modes() {
     char input[10];
-
+/*
     printf("Enable Energy Spectrum Scanning? (y/n): ");
     fgets(input, sizeof(input), stdin);
     energy_spectrum_enabled = (input[0] == 'y' || input[0] == 'Y');
-/*
+
     printf("Enable Position-Sensitive Scanning? (y/n): ");
     fgets(input, sizeof(input), stdin);
     position_sensitive_enabled = (input[0] == 'y' || input[0] == 'Y');
@@ -459,6 +567,10 @@ void enable_scanning_modes() {
 */
 }
 
+
+//EDIT ACQ MODES
+
+/*
 void process_energy_spectrum(const px_t *px, size_t count) {
     static int energy_histogram[256] = {0}; // Assuming 8-bit ToT values
     for (size_t i = 0; i < count; ++i) {
@@ -761,3 +873,4 @@ void process_calibration_scan(const px_t *px, size_t count) {
     H5Sclose(dataspace_id);
     H5Gclose(group_id);
 }
+*/
