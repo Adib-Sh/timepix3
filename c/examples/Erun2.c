@@ -59,7 +59,7 @@ int main(int argc, char *argv[]) {
     katherine_device_t device; 
 
     // Creating an HDF5 file
-    hdf5_file_id = H5Fcreate("output.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
+    hdf5_file_id = H5Fcreate("Fe55-184V.h5", H5F_ACC_TRUNC, H5P_DEFAULT, H5P_DEFAULT);
     if (hdf5_file_id < 0) {
         printf("Failed to create HDF5 file.\n");
         exit(7);
@@ -108,7 +108,7 @@ void configure(katherine_config_t *config) {
     config->bias_id                 = 0;
     config->acq_time                = 10e9; // ns
     config->no_frames               = 1;
-    config->bias                    = -130; // V
+    config->bias                    = 184; // V
 
     config->delayed_start           = false;
 
@@ -287,7 +287,7 @@ void pixels_received(void *user_ctx, const void *px, size_t count) {
     for (size_t i = 0; i < count; ++i) {
         data[i * 5 + 0] = dpx[i].coord.x;
         data[i * 5 + 1] = dpx[i].coord.y;
-        data[i * 5 + 2] = (int)dpx[i].toa;
+        data[i * 5 + 2] = dpx[i].toa;
         data[i * 5 + 3] = dpx[i].ftoa;
         data[i * 5 + 4] = dpx[i].tot;
     }
@@ -472,15 +472,14 @@ void digital_test(katherine_device_t *device)  {
 }
 
 void adc_voltage(katherine_device_t *device) {
-    unsigned char channel_id = 2;
     float voltage;
-    int res = katherine_get_adc_voltage(device, channel_id, &voltage);
+    int res = katherine_get_adc_voltage(device,0, &voltage);
     if (res != 0) {
         printf("ADC voltage test failed!\n");
         printf("Reason: %s\n", strerror(res));
         exit(10);
     }
-    printf("ADC voltage: %f on channel %d\n", voltage, channel_id);
+    printf("ADC voltage: %f\n", voltage);
 
 }
 
