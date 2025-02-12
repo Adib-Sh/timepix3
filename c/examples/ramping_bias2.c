@@ -13,13 +13,13 @@
 static const char *remote_addr = "192.168.1.218"; //Device IP address
 typedef katherine_px_f_toa_tot_t px_t; //ACQ mode (Modes in px.h) Here we import all modes
 
-// Global variables for configuration and modes
+// Global variables
 #define SENSOR_WIDTH 256
 #define SENSOR_HEIGHT 256
 static uint64_t pixel_counts[SENSOR_HEIGHT][SENSOR_WIDTH] = {0};
 static uint64_t n_hits = 0;
 
-// HDF5 File Management Structure
+// HDF5 File Structure
 typedef struct {
     hid_t file_id;
     hid_t pixel_datatype;
@@ -27,7 +27,7 @@ typedef struct {
     float current_bias;
 } H5FileManager;
 
-// Pixel Data Structure for HDF5
+// Data Structure for HDF5
 typedef struct {
     int x;
     int y;
@@ -37,7 +37,6 @@ typedef struct {
     uint32_t hit_count;
 } PixelHit;
 
-// Global HDF5 File Manager
 static H5FileManager h5_manager = {-1, -1, -1, 0.0};
 
 
@@ -68,18 +67,16 @@ hid_t create_pixel_datatype() {
 }
 
 void initialize_h5_file(float start_bias, float end_bias, float bias_step) {
-    // Create timestamped filename
+    // Create filename with timetamp
     char filename[128];
     time_t now;
     time(&now);
     struct tm *timeinfo = localtime(&now);
     strftime(filename, sizeof(filename), "pixel_data_%Y%m%d_%H%M%S.h5", timeinfo);
 
-    // File creation properties
+    // Create file
     hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
-    
-    // Create file
     h5_manager.file_id = H5Fcreate(filename, H5F_ACC_TRUNC, H5P_DEFAULT, plist_id);
     H5Pclose(plist_id);
 
@@ -91,7 +88,7 @@ void initialize_h5_file(float start_bias, float end_bias, float bias_step) {
     // Create datatype
     h5_manager.pixel_datatype = create_pixel_datatype();
 
-    // Store ramp parameters as attributes
+    // Store ramp parameters
     hid_t root_group = H5Gopen(h5_manager.file_id, "/", H5P_DEFAULT);
     hid_t attr_space = H5Screate(H5S_SCALAR);
     
@@ -113,17 +110,17 @@ void initialize_h5_file(float start_bias, float end_bias, float bias_step) {
 }
 
 void prepare_bias_dataset(float bias_voltage) {
-    // Close previous dataset if exists
+    // Close opened dataset if exists
     if (h5_manager.pixel_dataset >= 0) {
         H5Dclose(h5_manager.pixel_dataset);
     }
 
-    // Create group for this bias voltage
+    // Create group for current (or whatever the starting point is) bias voltage
     char group_name[64];
     snprintf(group_name, sizeof(group_name), "/bias_%.2fV", bias_voltage);
     hid_t group_id = H5Gcreate(h5_manager.file_id, group_name, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
 
-    // Create extensible dataset
+    // Create dataset
     hsize_t initial_dims[1] = {0};
     hsize_t max_dims[1] = {H5S_UNLIMITED};
     hid_t dataspace_id = H5Screate_simple(1, initial_dims, max_dims);
@@ -138,7 +135,7 @@ void prepare_bias_dataset(float bias_voltage) {
     // Store current bias
     h5_manager.current_bias = bias_voltage;
 
-    // Cleanup
+    // Close
     H5Pclose(plist);
     H5Sclose(dataspace_id);
     H5Gclose(group_id);
@@ -147,7 +144,7 @@ void prepare_bias_dataset(float bias_voltage) {
 void write_pixel_hits(const px_t *dpx, size_t count) {
     if (h5_manager.pixel_dataset < 0) return;
 
-    // Prepare pixel hits
+    // Init pixel hits
     PixelHit *pixel_hits = malloc(count * sizeof(PixelHit));
     
     for (size_t i = 0; i < count; ++i) {
@@ -159,7 +156,7 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
         pixel_hits[i].hit_count = pixel_counts[dpx[i].coord.y][dpx[i].coord.x]++;
     }
 
-    // Get current dataset size
+    // Get current dataset dims
     hid_t filespace = H5Dget_space(h5_manager.pixel_dataset);
     hsize_t current_dims[1];
     H5Sget_simple_extent_dims(filespace, current_dims, NULL);
@@ -177,7 +174,7 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count_hslab, NULL);
     H5Dwrite(h5_manager.pixel_dataset, h5_manager.pixel_datatype, memspace, filespace, H5P_DEFAULT, pixel_hits);
 
-    // Cleanup
+    // Close
     free(pixel_hits);
     H5Sclose(memspace);
     H5Sclose(filespace);
@@ -193,7 +190,7 @@ void close_h5_file() {
     if (h5_manager.file_id >= 0) {
         H5Fclose(h5_manager.file_id);
     }
-    // Reset manager
+    // Reset file
     h5_manager.file_id = -1;
     h5_manager.pixel_dataset = -1;
     h5_manager.pixel_datatype = -1;
@@ -214,7 +211,7 @@ int main(int argc, char *argv[]) {
     while (retries > 0) {
         printf("Attempting to connect to device at %s...\n", remote_addr);
         res = katherine_device_init(&device, remote_addr);
-        if (res == 0) break; // Success
+        if (res == 0) break; // Connected. No retry
         printf("Connection failed: %s. Retrying... (%d attempts left)\n", strerror(res), retries);
         sleep(1); // Wait before retrying
         retries--;
@@ -435,7 +432,7 @@ void ramp_bias(katherine_device_t *device, katherine_config_t *config, float sta
         // Set bias and run acquisition
         set_bias(device, 0, current_voltage);
         config->bias = current_voltage;
-        usleep(500000); // Stabilization delay
+        usleep(500000); // Waiting delay time before the next voltage
 
         // Acquisition setup
         katherine_acquisition_t acq;
