@@ -9,7 +9,7 @@ COLUMN_NAMES = ['X', 'Y', 'ToA', 'fToA', 'ToT', 'Pixel_C']
 
 with h5py.File(file_name, 'r') as file:
     print("Keys: %s" % file.keys())
-    a_group_key = list(file.keys())[0]
+    a_group_key = list(file.keys())[4]
 
     print(type(file[a_group_key])) 
     fig1 = plt.figure(figsize=(15, 7))
@@ -31,6 +31,7 @@ with h5py.File(file_name, 'r') as file:
     ax1.set_xlabel('X')
     ax1.set_ylabel('Y')
     ax1.set_zlabel('ToA')
+    ax1.set_title('ToA over Sensor Spatial X-Y')
     plt.show()
     
     
@@ -43,6 +44,7 @@ with h5py.File(file_name, 'r') as file:
     ax2.set_xlabel('X')
     ax2.set_ylabel('Y')
     ax2.set_zlabel('ToT')
+    ax2.set_title('ToT over Sensor Spatial X-Y')
     plt.show()
     
     
@@ -55,5 +57,5 @@ with h5py.File(file_name, 'r') as file:
     ax3.set_xlabel('X')
     ax3.set_ylabel('Y')
     ax3.set_zlabel('Pixel Count')
-    ax.set_title('Title', fontsize=next(fontsizes))
+    ax3.set_title('Individual Pixel Hit Count on Sensor Spatial X-Y')
     plt.show()
