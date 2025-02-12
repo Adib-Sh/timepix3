@@ -231,7 +231,7 @@ int main(int argc, char *argv[]) {
     get_sensor_temp(&device);
     digital_test(&device);
     adc_voltage(&device);  
-    ramp_bias(&device, &c, -190.0, -150.0, 2.0);
+    ramp_bias(&device, &c, -190.0, -100.0, 2.0);
 
 
     // Closing device
