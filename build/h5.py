@@ -2,7 +2,7 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 
-file_path = 'Fe55-187V.h5'
+file_path = 'Fe-155V_newconfig.h5'
 
 
 COLUMN_NAMES = ['X', 'Y', 'ToA', 'fToA', 'ToT']
@@ -34,7 +34,7 @@ def plot_pixel_data(dataset):
 
     # Scatter plot of pixel positions
     plt.figure(figsize=(10, 6))
-    plt.scatter(x, y, c=toa, cmap='viridis', alpha=0.5)
+    plt.scatter(x, y, c=toa, cmap='viridis', alpha=1)
     plt.colorbar(label='Time of Arrival (ToA)')
     plt.title("Pixel Data: ToA")
     plt.xlabel("X")
@@ -43,7 +43,7 @@ def plot_pixel_data(dataset):
     plt.show()
     
     plt.figure(figsize=(10, 6))
-    plt.scatter(x, y, c=tot, cmap='viridis', alpha=0.5)
+    plt.scatter(x, y, c=tot, cmap='viridis', alpha=1)
     plt.colorbar(label='Time over Threshold (ToT)')
     plt.title("Pixel Data: ToT")
     plt.xlabel("X")

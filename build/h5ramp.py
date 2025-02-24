@@ -3,13 +3,13 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib import colors
 
-file_name = 'pixel_data_20250207_191402.h5'
+file_name = 'pixel_data_20250223_034233.h5'
 
 COLUMN_NAMES = ['X', 'Y', 'ToA', 'fToA', 'ToT', 'Pixel_C']
 
 with h5py.File(file_name, 'r') as file:
     print("Keys: %s" % file.keys())
-    a_group_key = list(file.keys())[4]
+    a_group_key = list(file.keys())[-6]
 
     print(type(file[a_group_key])) 
     fig1 = plt.figure(figsize=(15, 7))
