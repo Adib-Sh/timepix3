@@ -6,8 +6,6 @@
 #include <katherine/katherine.h>
 #include <hdf5.h>
 
-
-
 static const char *remote_addr = "192.168.1.218"; //Device IP address
 typedef katherine_px_f_toa_tot_t px_t; //ACQ mode (Modes in px.h) Here we import all modes
 
@@ -17,12 +15,21 @@ typedef katherine_px_f_toa_tot_t px_t; //ACQ mode (Modes in px.h) Here we import
 static uint64_t pixel_counts[SENSOR_HEIGHT][SENSOR_WIDTH] = {0};
 static uint64_t n_hits = 0;
 
+// THL calibration settings
+#define THL_START 0     // Start THL value
+#define THL_END 498       // End THL value
+#define THL_STEP 2        // THL step size
+#define FRAMES_PER_THL 1  // Number of frames to acquire at each THL value
+#define ACQ_TIME 1e8    // 100ms acquisition time per frame
+
 // HDF5 File Structure
 typedef struct {
     hid_t file_id;
     hid_t pixel_datatype;
     hid_t pixel_dataset;
+    hid_t thl_dataset;    // Dataset to store THL scan results
     float current_bias;
+    int current_thl;
 } H5FileManager;
 
 // Data Structure for HDF5
@@ -33,12 +40,20 @@ typedef struct {
     uint8_t ftoa;
     uint16_t tot;
     uint32_t hit_count;
+    int thl;              // THL value for this hit
 } PixelHit;
 
-static H5FileManager h5_manager = {-1, -1, -1};
+// THL scan result structure
+typedef struct {
+    int thl;
+    int frame_idx;
+    uint64_t hits;
+} THLScanPoint;
+
+static H5FileManager h5_manager = {-1, -1, -1, -1};
 
 // Function prototypes
-void configure(katherine_config_t *config);
+void configure(katherine_config_t *config, int thl_value);
 void frame_started(void *user_ctx, int frame_idx);
 void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_frame_info_t *info);
 void pixels_received(void *user_ctx, const void *px, size_t count);
@@ -49,8 +64,8 @@ void get_sensor_temp(katherine_device_t *device);
 void digital_test(katherine_device_t *device);
 void adc_voltage(katherine_device_t *device);
 void reset_pixel_counts();
+void run_thl_scan(katherine_device_t *device);
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config);
-void enable_scanning_modes();
 
 // HDF5 Initialization and Setup
 hid_t create_pixel_datatype() {
@@ -61,7 +76,16 @@ hid_t create_pixel_datatype() {
     H5Tinsert(pixel_type, "ftoa", HOFFSET(PixelHit, ftoa), H5T_NATIVE_UINT8);
     H5Tinsert(pixel_type, "tot", HOFFSET(PixelHit, tot), H5T_NATIVE_UINT16);
     H5Tinsert(pixel_type, "hit_count", HOFFSET(PixelHit, hit_count), H5T_NATIVE_UINT32);
+    H5Tinsert(pixel_type, "thl", HOFFSET(PixelHit, thl), H5T_NATIVE_INT);
     return pixel_type;
+}
+
+hid_t create_thl_scan_datatype() {
+    hid_t thl_type = H5Tcreate(H5T_COMPOUND, sizeof(THLScanPoint));
+    H5Tinsert(thl_type, "thl", HOFFSET(THLScanPoint, thl), H5T_NATIVE_INT);
+    H5Tinsert(thl_type, "frame_idx", HOFFSET(THLScanPoint, frame_idx), H5T_NATIVE_INT);
+    H5Tinsert(thl_type, "hits", HOFFSET(THLScanPoint, hits), H5T_NATIVE_UINT64);
+    return thl_type;
 }
 
 void initialize_h5_file() {
@@ -70,7 +94,7 @@ void initialize_h5_file() {
     time_t now;
     time(&now);
     struct tm *timeinfo = localtime(&now);
-    strftime(filename, sizeof(filename), "pixel_data_%Y%m%d_%H%M%S.h5", timeinfo);
+    strftime(filename, sizeof(filename), "thl_calibration_%Y%m%d_%H%M%S.h5", timeinfo);
 
     // Create file
     hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -83,7 +107,7 @@ void initialize_h5_file() {
         return;
     }
 
-    // Create datatype
+    // Create datatype for pixel hits
     h5_manager.pixel_datatype = create_pixel_datatype();
 
     // Create dataset for all pixel hits
@@ -98,49 +122,85 @@ void initialize_h5_file() {
     h5_manager.pixel_dataset = H5Dcreate(h5_manager.file_id, "/pixel_hits", h5_manager.pixel_datatype, 
                                          dataspace_id, H5P_DEFAULT, plist, H5P_DEFAULT);
 
+    // Create dataset for THL scan results
+    hid_t thl_datatype = create_thl_scan_datatype();
+    
+    // Calculate number of THL points
+    int num_thl_points = ((THL_END - THL_START) / THL_STEP + 1) * FRAMES_PER_THL;
+    hsize_t thl_dims[1] = {num_thl_points};
+    hid_t thl_dataspace = H5Screate_simple(1, thl_dims, NULL);
+    
+    h5_manager.thl_dataset = H5Dcreate(h5_manager.file_id, "/thl_scan", thl_datatype, 
+                                       thl_dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
+    
+    // Store THL scan parameters as attributes
+    hid_t attr_space = H5Screate(H5S_SCALAR);
+    hid_t attr;
+    
+    attr = H5Acreate(h5_manager.file_id, "thl_start", H5T_NATIVE_INT, attr_space, H5P_DEFAULT, H5P_DEFAULT);
+    int thl_start = THL_START;
+    H5Awrite(attr, H5T_NATIVE_INT, &thl_start);
+    H5Aclose(attr);
+    
+    attr = H5Acreate(h5_manager.file_id, "thl_end", H5T_NATIVE_INT, attr_space, H5P_DEFAULT, H5P_DEFAULT);
+    int thl_end = THL_END;
+    H5Awrite(attr, H5T_NATIVE_INT, &thl_end);
+    H5Aclose(attr);
+    
+    attr = H5Acreate(h5_manager.file_id, "thl_step", H5T_NATIVE_INT, attr_space, H5P_DEFAULT, H5P_DEFAULT);
+    int thl_step = THL_STEP;
+    H5Awrite(attr, H5T_NATIVE_INT, &thl_step);
+    H5Aclose(attr);
+    
+    attr = H5Acreate(h5_manager.file_id, "frames_per_thl", H5T_NATIVE_INT, attr_space, H5P_DEFAULT, H5P_DEFAULT);
+    int frames_per_thl = FRAMES_PER_THL;
+    H5Awrite(attr, H5T_NATIVE_INT, &frames_per_thl);
+    H5Aclose(attr);
+
     // Close resources
+    H5Sclose(attr_space);
+    H5Tclose(thl_datatype);
+    H5Sclose(thl_dataspace);
     H5Pclose(plist);
     H5Sclose(dataspace_id);
+    
+    // Initialize current THL value
+    h5_manager.current_thl = THL_START;
 }
 
 void write_pixel_hits(const px_t *dpx, size_t count) {
     if (h5_manager.pixel_dataset < 0) return;
 
-    // Init pixel hits
+    // First, process the hits (original logic)
     PixelHit *pixel_hits = malloc(count * sizeof(PixelHit));
-    
     for (size_t i = 0; i < count; ++i) {
         int x = dpx[i].coord.x;
         int y = dpx[i].coord.y;
         
-        // Verify coordinates are within bounds
         if (x < 0 || x >= SENSOR_WIDTH || y < 0 || y >= SENSOR_HEIGHT) {
             printf("Warning: Pixel coordinates out of bounds: (%d, %d)\n", x, y);
             continue;
         }
         
-        // Increment the hit count for this pixel location
         pixel_counts[y][x]++;
         
-        // Populate the hit data structure
         pixel_hits[i].x = x;
         pixel_hits[i].y = y;
         pixel_hits[i].toa = dpx[i].toa;
         pixel_hits[i].ftoa = dpx[i].ftoa;
         pixel_hits[i].tot = dpx[i].tot;
-        pixel_hits[i].hit_count = pixel_counts[y][x]; // Store the current count
+        pixel_hits[i].hit_count = pixel_counts[y][x];
+        pixel_hits[i].thl = h5_manager.current_thl;
     }
 
-    // Get current dataset dims
+    // Write the hits (original logic)
     hid_t filespace = H5Dget_space(h5_manager.pixel_dataset);
     hsize_t current_dims[1];
     H5Sget_simple_extent_dims(filespace, current_dims, NULL);
 
-    // Extend dataset
     hsize_t new_size[1] = {current_dims[0] + count};
     H5Dset_extent(h5_manager.pixel_dataset, new_size);
 
-    // Write data
     hsize_t start[1] = {current_dims[0]};
     hsize_t count_hslab[1] = {count};
     hid_t memspace = H5Screate_simple(1, count_hslab, NULL);
@@ -149,13 +209,77 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
     H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count_hslab, NULL);
     H5Dwrite(h5_manager.pixel_dataset, h5_manager.pixel_datatype, memspace, filespace, H5P_DEFAULT, pixel_hits);
 
-    // Close
     free(pixel_hits);
+    H5Sclose(memspace);
+    H5Sclose(filespace);
+
+    // --- New: Write all pixels (including zeros) after processing hits ---
+    PixelHit *all_pixels = malloc(SENSOR_WIDTH * SENSOR_HEIGHT * sizeof(PixelHit));
+    size_t index = 0;
+
+    for (int y = 0; y < SENSOR_HEIGHT; ++y) {
+        for (int x = 0; x < SENSOR_WIDTH; ++x) {
+            all_pixels[index].x = x;
+            all_pixels[index].y = y;
+            all_pixels[index].toa = 0;
+            all_pixels[index].ftoa = 0;
+            all_pixels[index].tot = 0;
+            all_pixels[index].hit_count = pixel_counts[y][x]; // Includes zeros
+            all_pixels[index].thl = h5_manager.current_thl;
+            index++;
+        }
+    }
+
+    // Write all pixels to the dataset
+    filespace = H5Dget_space(h5_manager.pixel_dataset);
+    H5Sget_simple_extent_dims(filespace, current_dims, NULL);
+
+    new_size[0] = current_dims[0] + SENSOR_WIDTH * SENSOR_HEIGHT;
+    H5Dset_extent(h5_manager.pixel_dataset, new_size);
+
+    start[0] = current_dims[0];
+    count_hslab[0] = SENSOR_WIDTH * SENSOR_HEIGHT;
+    memspace = H5Screate_simple(1, count_hslab, NULL);
+    
+    filespace = H5Dget_space(h5_manager.pixel_dataset);
+    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count_hslab, NULL);
+    H5Dwrite(h5_manager.pixel_dataset, h5_manager.pixel_datatype, memspace, filespace, H5P_DEFAULT, all_pixels);
+
+    free(all_pixels);
     H5Sclose(memspace);
     H5Sclose(filespace);
 }
 
+void write_thl_scan_point(int thl, int frame_idx, uint64_t hits) {
+    if (h5_manager.thl_dataset < 0) return;
+    
+    THLScanPoint point;
+    point.thl = thl;
+    point.frame_idx = frame_idx;
+    point.hits = hits;
+    
+    // Calculate the index for this THL point
+    int thl_index = ((thl - THL_START) / THL_STEP) * FRAMES_PER_THL + frame_idx;
+    
+    hsize_t start[1] = {thl_index};
+    hsize_t count[1] = {1};
+    
+    hid_t dataspace = H5Dget_space(h5_manager.thl_dataset);
+    H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, start, NULL, count, NULL);
+    
+    hid_t memspace = H5Screate_simple(1, count, NULL);
+    
+    // Use the correct datatype for writing
+    H5Dwrite(h5_manager.thl_dataset, h5_manager.pixel_datatype, memspace, dataspace, H5P_DEFAULT, &point);
+    
+    H5Sclose(memspace);
+    H5Sclose(dataspace);
+}
+
 void close_h5_file() {
+    if (h5_manager.thl_dataset >= 0) {
+        H5Dclose(h5_manager.thl_dataset);
+    }
     if (h5_manager.pixel_dataset >= 0) {
         H5Dclose(h5_manager.pixel_dataset);
     }
@@ -169,14 +293,12 @@ void close_h5_file() {
     h5_manager.file_id = -1;
     h5_manager.pixel_dataset = -1;
     h5_manager.pixel_datatype = -1;
+    h5_manager.thl_dataset = -1;
     h5_manager.current_bias = 0.0;
+    h5_manager.current_thl = 0;
 }
 
 int main(int argc, char *argv[]) {
-    // Loading config
-    katherine_config_t c; 
-    configure(&c);
-
     // Initializing device
     int res;
     katherine_device_t device; 
@@ -203,8 +325,9 @@ int main(int argc, char *argv[]) {
     get_sensor_temp(&device);
     digital_test(&device);
     adc_voltage(&device);  
-    run_acquisition(&device, &c);
-
+    
+    // Run THL scan
+    run_thl_scan(&device);
 
     // Closing device
     katherine_device_fini(&device);
@@ -213,11 +336,10 @@ int main(int argc, char *argv[]) {
     return 0;
 }
 
-
-void configure(katherine_config_t *config) {
+void configure(katherine_config_t *config, int thl_value) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 5e9; // ns
+    config->acq_time                = ACQ_TIME; // 100ms per frame
     config->no_frames               = 1;
     config->bias                    = 155; // V
 
@@ -241,7 +363,7 @@ void configure(katherine_config_t *config) {
     config->dacs.named.VPReamp_NCAS          = 128;
     config->dacs.named.Ibias_Ikrum           = 15;
     config->dacs.named.Vfbk                  = 164;
-    config->dacs.named.Vthreshold_fine       = 224;
+    config->dacs.named.Vthreshold_fine       = thl_value;  // THL value we're testing
     config->dacs.named.Vthreshold_coarse     = 7;
     config->dacs.named.Ibias_DiscS1_ON       = 100;
     config->dacs.named.Ibias_DiscS1_OFF      = 8;
@@ -310,10 +432,9 @@ void get_sensor_temp(katherine_device_t *device) {
         exit(9);
     }
     printf("Sensor temperature: %.2f°C\n", temperature);
-
 }
 
-void digital_test(katherine_device_t *device)  {
+void digital_test(katherine_device_t *device) {
     int res = katherine_perform_digital_test(device);
     if (res != 0) {
         printf("Digital test failed!\n");
@@ -321,7 +442,6 @@ void digital_test(katherine_device_t *device)  {
         exit(10);
     }
     printf("Digital test passed.\n");
-
 }
 
 void adc_voltage(katherine_device_t *device) {
@@ -333,37 +453,35 @@ void adc_voltage(katherine_device_t *device) {
         exit(11);
     }
     printf("ADC voltage: %f\n", voltage);
-
 }
 
 void frame_started(void *user_ctx, int frame_idx) {
     n_hits = 0;
-
-    printf("Started frame %d.\n", frame_idx);
-
+    printf("Started frame %d at THL=%d.\n", frame_idx, h5_manager.current_thl);
 }
 
 katherine_frame_info_t last_frame_info = {0};
 void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_frame_info_t *info) {
-    // Existing frame_ended logic
+    // Save frame info for THL scan
     const double recv_perc = 100. * info->received_pixels / info->sent_pixels;
-
+    n_hits = info->received_pixels;
+    
     printf("\n");
-    printf("Ended frame %d.\n", frame_idx);
+    printf("Ended frame %d at THL=%d.\n", frame_idx, h5_manager.current_thl);
+    printf(" - Pixels received: %lu\n", info->received_pixels);
     printf(" - tpx3->katherine lost %lu pixels\n", info->lost_pixels);
     printf(" - katherine->pc sent %lu pixels\n", info->sent_pixels);
-    printf(" - katherine->pc received %lu pixels\n", info->received_pixels);
     printf(" - state: %s\n", (completed ? "completed" : "not completed"));
-    printf(" - start time: %lu\n", info->start_time.d);
-    printf(" - end time: %lu\n", info->end_time.d);
-
+    
+    // Store THL scan point
+    write_thl_scan_point(h5_manager.current_thl, frame_idx, n_hits);
+    
     // Store last frame info
     memcpy(&last_frame_info, info, sizeof(katherine_frame_info_t));
 }
 
 void pixels_received(void *user_ctx, const void *px, size_t count) {
     const px_t *dpx = (const px_t *) px;
-    
     write_pixel_hits(dpx, count);
 }
 
@@ -372,8 +490,42 @@ void reset_pixel_counts() {
     n_hits = 0;
 }
 
-void run_acquisition(katherine_device_t *device, const katherine_config_t *config) {
+void run_thl_scan(katherine_device_t *device) {
+    printf("\n=== Starting THL Calibration Scan ===\n");
+    printf("THL range: %d to %d with step %d\n", THL_START, THL_END, THL_STEP);
+    printf("Frames per THL: %d\n", FRAMES_PER_THL);
+    printf("Acquisition time per frame: %.2f ms\n", ACQ_TIME / 1e6);
+    
     initialize_h5_file();
+    
+    // Iterate through THL values
+    for (int thl = THL_START; thl <= THL_END; thl += THL_STEP) {
+        printf("\nSetting THL to %d\n", thl);
+        h5_manager.current_thl = thl;
+        
+        // Configure for this THL value
+        katherine_config_t config;
+        configure(&config, thl);
+        
+        // For each THL value, acquire multiple frames
+        for (int frame = 0; frame < FRAMES_PER_THL; frame++) {
+            printf("Frame %d/%d for THL=%d\n", frame+1, FRAMES_PER_THL, thl);
+            
+            // Reset pixel counts for new frame
+            reset_pixel_counts();
+            
+            // Run acquisition
+            run_acquisition(device, &config);
+            
+            // Small delay between frames
+            usleep(1000000);  // 100ms
+        }
+    }
+    
+    printf("\n=== THL Calibration Scan Complete ===\n");
+}
+
+void run_acquisition(katherine_device_t *device, const katherine_config_t *config) {
     // Acquisition setup
     katherine_acquisition_t acq;
     int res = katherine_acquisition_init(&acq, device, NULL, 
@@ -395,7 +547,7 @@ void run_acquisition(katherine_device_t *device, const katherine_config_t *confi
                                       ACQUISITION_MODE_TOA_TOT, 
                                       true, true);
     if (res != 0) {
-        printf("Cannot begin acquisition .\n");
+        printf("Cannot begin acquisition.\n");
         katherine_acquisition_fini(&acq);
         return;
     }
@@ -410,7 +562,4 @@ void run_acquisition(katherine_device_t *device, const katherine_config_t *confi
 
     // Finalize acquisition
     katherine_acquisition_fini(&acq);
-    close_h5_file();
-    printf("Acquisition completed\n");
 }
-

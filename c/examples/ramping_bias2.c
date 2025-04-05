@@ -31,9 +31,6 @@ typedef struct {
 typedef struct {
     int x;
     int y;
-    uint64_t toa;
-    uint8_t ftoa;
-    uint16_t tot;
     uint32_t hit_count;
 } PixelHit;
 
@@ -59,9 +56,6 @@ hid_t create_pixel_datatype() {
     hid_t pixel_type = H5Tcreate(H5T_COMPOUND, sizeof(PixelHit));
     H5Tinsert(pixel_type, "x", HOFFSET(PixelHit, x), H5T_NATIVE_INT);
     H5Tinsert(pixel_type, "y", HOFFSET(PixelHit, y), H5T_NATIVE_INT);
-    H5Tinsert(pixel_type, "toa", HOFFSET(PixelHit, toa), H5T_NATIVE_UINT64);
-    H5Tinsert(pixel_type, "ftoa", HOFFSET(PixelHit, ftoa), H5T_NATIVE_UINT8);
-    H5Tinsert(pixel_type, "tot", HOFFSET(PixelHit, tot), H5T_NATIVE_UINT16);
     H5Tinsert(pixel_type, "hit_count", HOFFSET(PixelHit, hit_count), H5T_NATIVE_UINT32);
     return pixel_type;
 }
@@ -72,7 +66,7 @@ void initialize_h5_file(float start_bias, float end_bias, float bias_step) {
     time_t now;
     time(&now);
     struct tm *timeinfo = localtime(&now);
-    strftime(filename, sizeof(filename), "pixel_data_%Y%m%d_%H%M%S.h5", timeinfo);
+    strftime(filename, sizeof(filename), "ramp_bias_%Y%m%d_%H%M%S.h5", timeinfo);
 
     // Create file
     hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -150,9 +144,6 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
     for (size_t i = 0; i < count; ++i) {
         pixel_hits[i].x = dpx[i].coord.x;
         pixel_hits[i].y = dpx[i].coord.y;
-        pixel_hits[i].toa = dpx[i].toa;
-        pixel_hits[i].ftoa = dpx[i].ftoa;
-        pixel_hits[i].tot = dpx[i].tot;
         pixel_hits[i].hit_count = pixel_counts[dpx[i].coord.y][dpx[i].coord.x]++;
     }
 
@@ -228,7 +219,7 @@ int main(int argc, char *argv[]) {
     get_sensor_temp(&device);
     digital_test(&device);
     adc_voltage(&device);  
-    ramp_bias(&device, &c, -190.0, -100.0, 2.0);
+    ramp_bias(&device, &c, 80, 180, 2.0);
 
 
     // Closing device
@@ -241,9 +232,9 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 1e8; // ns
+    config->acq_time                = 5e8; // ns
     config->no_frames               = 1;
-    config->bias                    = 270; // V
+    //config->bias                    = 270; // V
 
     config->delayed_start           = false;
 
@@ -254,8 +245,8 @@ void configure(katherine_config_t *config) {
     config->stop_trigger.channel            = 0;
     config->stop_trigger.use_falling_edge   = false;
 
-    config->gray_disable            = false;
-    config->polarity_holes          = false;
+    config->gray_disable            = true;
+    config->polarity_holes          = true;
 
     config->phase                   = PHASE_1;
     config->freq                    = FREQ_40;
@@ -265,8 +256,8 @@ void configure(katherine_config_t *config) {
     config->dacs.named.VPReamp_NCAS          = 128;
     config->dacs.named.Ibias_Ikrum           = 15;
     config->dacs.named.Vfbk                  = 164;
-    config->dacs.named.Vthreshold_fine       = 476;
-    config->dacs.named.Vthreshold_coarse     = 8;
+    config->dacs.named.Vthreshold_fine       = 442;
+    config->dacs.named.Vthreshold_coarse     = 7;
     config->dacs.named.Ibias_DiscS1_ON       = 100;
     config->dacs.named.Ibias_DiscS1_OFF      = 8;
     config->dacs.named.Ibias_DiscS2_ON       = 128;
@@ -415,7 +406,15 @@ void reset_pixel_counts() {
 void ramp_bias(katherine_device_t *device, katherine_config_t *config, float start_bias, float end_bias, float bias_step) {
     // Initialize HDF5 file with ramp parameters
     initialize_h5_file(start_bias, end_bias, bias_step);
-
+    // Acquisition setup
+    katherine_acquisition_t acq;
+    int res = katherine_acquisition_init(&acq, device, NULL, 
+                                        KATHERINE_MD_SIZE * 34952533, 
+                                        sizeof(px_t) * 65536, 500, 30000);
+    if (res != 0) {
+        printf("Cannot initialize acquisition.\n");
+        return;
+    }
     // Determine ramping direction and step
     float step = (start_bias <= end_bias) ? fabs(bias_step) : -fabs(bias_step);
     float current_voltage = start_bias;
@@ -428,21 +427,15 @@ void ramp_bias(katherine_device_t *device, katherine_config_t *config, float sta
         
         // Reset pixel counts
         reset_pixel_counts();
+        
+
+        
 
         // Set bias and run acquisition
-        set_bias(device, 0, current_voltage);
+        //set_bias(device, 0, current_voltage);
         config->bias = current_voltage;
-        usleep(500000); // Waiting delay time before the next voltage
-
-        // Acquisition setup
-        katherine_acquisition_t acq;
-        int res = katherine_acquisition_init(&acq, device, NULL, 
-                                             KATHERINE_MD_SIZE * 34952533, 
-                                             sizeof(px_t) * 65536, 500, 30000);
-        if (res != 0) {
-            printf("Cannot initialize acquisition at bias %.2fV.\n", current_voltage);
-            break;
-        }
+        //katherine_set_bias(device, 0, current_voltage);
+        printf("Acquisition at bias voltage %.2fV.\n", current_voltage);
 
         // Set acquisition handlers
         acq.handlers.frame_started = frame_started;
@@ -452,7 +445,7 @@ void ramp_bias(katherine_device_t *device, katherine_config_t *config, float sta
         // Begin acquisition
         res = katherine_acquisition_begin(&acq, config, 
                                           READOUT_DATA_DRIVEN, 
-                                          ACQUISITION_MODE_TOA_TOT, 
+                                          ACQUISITION_MODE_EVENT_ITOT, 
                                           true, true);
         if (res != 0) {
             printf("Cannot begin acquisition at bias %.2fV.\n", current_voltage);
@@ -469,14 +462,15 @@ void ramp_bias(katherine_device_t *device, katherine_config_t *config, float sta
         }
 
         // Finalize acquisition
-        katherine_acquisition_fini(&acq);
+        
         
         // Move to next voltage
         current_voltage += step;
+        usleep(500000); // Waiting delay time before the next voltage
     }
 
     // Close HDF5 file
     close_h5_file();
-
+    katherine_acquisition_fini(&acq);
     printf("Bias ramping and acquisition sequence completed\n");
 }
