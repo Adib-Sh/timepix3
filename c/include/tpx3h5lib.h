@@ -21,9 +21,9 @@ typedef struct {
     hsize_t current_size;
 } Tpx3H5Writer;
 
-/**
- * Create HDF5 datatype for PixelHit
- */
+
+//Create HDF5 datatype for PixelHit
+
 static hid_t tpx3h5_create_datatype() {
     hid_t dtype = H5Tcreate(H5T_COMPOUND, sizeof(PixelHit));
     H5Tinsert(dtype, "x", HOFFSET(PixelHit, x), H5T_NATIVE_INT);
@@ -35,9 +35,9 @@ static hid_t tpx3h5_create_datatype() {
     return dtype;
 }
 
-/**
- * Initialize HDF5 writer with filename and dataset
- */
+
+//Initialize HDF5 writer with filename and dataset
+
 static int tpx3h5_init(Tpx3H5Writer *writer, const char *filename, const char *dataset_name) {
     writer->current_size = 0;
 
@@ -65,9 +65,9 @@ static int tpx3h5_init(Tpx3H5Writer *writer, const char *filename, const char *d
     return (writer->dataset < 0) ? -2 : 0;
 }
 
-/**
- * Append PixelHit data to dataset
- */
+
+//Add or append PixelHit data to dataset
+
 static int tpx3h5_append(Tpx3H5Writer *writer, const void *data, size_t count) {
     if (writer->dataset < 0) return -1;
 
@@ -89,9 +89,9 @@ static int tpx3h5_append(Tpx3H5Writer *writer, const void *data, size_t count) {
     return 0;
 }
 
-/**
- * Close all open handles
- */
+
+//Close all open files
+
 static void tpx3h5_close(Tpx3H5Writer *writer) {
     if (writer->dataset >= 0) H5Dclose(writer->dataset);
     if (writer->datatype >= 0) H5Tclose(writer->datatype);
