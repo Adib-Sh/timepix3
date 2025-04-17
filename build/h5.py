@@ -2,8 +2,7 @@ import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 
-file_path = 'Fe-155V_newconfig.h5'
-
+file_path = 'pixel_data_20250326_212021.h5'
 
 COLUMN_NAMES = ['X', 'Y', 'ToA', 'fToA', 'ToT']
 
@@ -107,30 +106,21 @@ def plot_pixel_counts(file_path):
         # Read the pixel_counts dataset
         pixel_counts = file['pixel_counts'][:]
         
-        # Create a figure with a larger size
         plt.figure(figsize=(12, 10))
         
-        # Create a heatmap using imshow
         im = plt.imshow(pixel_counts, 
                        cmap='viridis',
                        interpolation='nearest',
                        origin='lower')
         
-        # Add a colorbar
         plt.colorbar(im, label='Counts')
         
-        # Add labels and title
         plt.title('Pixel Counts (256×256)')
         plt.xlabel('X Position')
         plt.ylabel('Y Position')
-        
-        # Add grid
         plt.grid(False)
-        
-        # Show the plot
         plt.show()
         
-        # Print some statistics
         total_counts = np.sum(pixel_counts)
         max_counts = np.max(pixel_counts)
         mean_counts = np.mean(pixel_counts)
@@ -140,7 +130,6 @@ def plot_pixel_counts(file_path):
         print(f"Maximum counts in a single pixel: {max_counts}")
         print(f"Mean counts per pixel: {mean_counts:.2f}")
         
-        # Show histogram of counts
         plt.figure(figsize=(10, 6))
         plt.hist(pixel_counts.flatten(), bins=50, color='blue', alpha=0.7)
         plt.title("Distribution of Pixel Counts")

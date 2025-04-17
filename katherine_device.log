@@ -1,0 +1,20 @@
+2024-12-18 15:04:26,931 - __main__ - INFO - Successfully loaded library: ./build/libkatherine.so
+2024-12-18 15:04:26,931 - __main__ - ERROR - Unexpected error: name 'KatherineDevice' is not defined
+2024-12-18 15:06:19,059 - __main__ - INFO - Successfully loaded library: ./build/libkatherine.so
+2024-12-18 15:06:19,060 - __main__ - INFO - Successfully connected to device at 192.168.1.218
+2024-12-18 15:06:19,075 - __main__ - INFO - Device Information:
+2024-12-18 15:06:19,075 - __main__ - INFO - chip_id: D4-W0005
+2024-12-18 15:06:19,075 - __main__ - INFO - readout_status: {'hw_type': 1, 'hw_revision': 131, 'hw_serial_number': 104, 'fw_version': 4}
+2024-12-18 15:06:19,075 - __main__ - INFO - comm_status: {'comm_lines_mask': 129, 'data_rate': 800, 'chip_detected': True}
+2024-12-18 15:06:19,076 - __main__ - INFO - temperatures: {'readout': 50.5625, 'sensor': 71.4028091430664}
+2024-12-18 15:06:20,121 - __main__ - INFO - Digital test passed successfully
+2024-12-18 15:06:20,122 - __main__ - INFO - Device connection closed successfully
+2024-12-18 15:06:22,575 - __main__ - INFO - Successfully loaded library: ./build/libkatherine.so
+2024-12-18 15:06:22,575 - __main__ - INFO - Successfully connected to device at 192.168.1.218
+2024-12-18 15:06:22,590 - __main__ - INFO - Device Information:
+2024-12-18 15:06:22,590 - __main__ - INFO - chip_id: D4-W0005
+2024-12-18 15:06:22,591 - __main__ - INFO - readout_status: {'hw_type': 1, 'hw_revision': 131, 'hw_serial_number': 104, 'fw_version': 4}
+2024-12-18 15:06:22,591 - __main__ - INFO - comm_status: {'comm_lines_mask': 129, 'data_rate': 800, 'chip_detected': True}
+2024-12-18 15:06:22,591 - __main__ - INFO - temperatures: {'readout': 50.5625, 'sensor': 71.4028091430664}
+2024-12-18 15:06:23,627 - __main__ - INFO - Digital test passed successfully
+2024-12-18 15:06:23,628 - __main__ - INFO - Device connection closed successfully

@@ -219,7 +219,7 @@ int main(int argc, char *argv[]) {
     get_sensor_temp(&device);
     digital_test(&device);
     adc_voltage(&device);  
-    ramp_bias(&device, &c, 80, 180, 2.0);
+    ramp_bias(&device, &c, 80, 180, 5.0);
 
 
     // Closing device
@@ -432,7 +432,7 @@ void ramp_bias(katherine_device_t *device, katherine_config_t *config, float sta
         
 
         // Set bias and run acquisition
-        //set_bias(device, 0, current_voltage);
+        set_bias(device, 0, current_voltage);
         config->bias = current_voltage;
         //katherine_set_bias(device, 0, current_voltage);
         printf("Acquisition at bias voltage %.2fV.\n", current_voltage);
