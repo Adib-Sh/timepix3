@@ -209,8 +209,8 @@ gcc -o myprogram myprogram.c -lhdf5
 
 ## License
 
-[Add appropriate license information]
+MIT License
 
 ## Contact
 
-[Add contact information]
+adib.shaker@maxiv.lu.se
