@@ -15,8 +15,8 @@ static uint64_t pixel_counts[SENSOR_HEIGHT][SENSOR_WIDTH] = {0};
 
 // CLA structs and parsing
 const char *argp_program_version = "Erun3 1.0";
-const char *argp_program_bug_address = "<your_email@example.com>";
-static char doc[] = "Erun3 — Timepix3 HDF5 Acquisition Tool";
+const char *argp_program_bug_address = "<ad6224sh@lu.se>";
+static char doc[] = "Erun3 — Timepix3 Acquisition Tool for Katherine with HDF5 functionally enabled";
 static char args_doc[] = "[OPTIONS]";
 
 static struct argp_option options[] = {
@@ -58,7 +58,7 @@ void display_detailed_help() {
     printf("=========================\n\n");
     
     printf("ACQUISITION MODES:\n");
-    printf("  0 = TOA_TOT_EVENT: Time of Arrival, Time over Threshold, and Event counting(default)\n");
+    printf("  0 = TOA_TOT_EVENT: Time of Arrival, Time over Threshold, and Event counting (default)\n");
     printf("  1 = TOA: Time of Arrival only\n");
     printf("  2 = EVENT_ITOT: Event counting with integral Time over Threshold\n\n");
     
