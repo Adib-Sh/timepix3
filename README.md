@@ -2,7 +2,7 @@
 
 ## Overview
 
-`tpx3h5lib` is a lightweight C library for efficiently storing Timepix3 detector data in HDF5 format. It provides a simple interface for creating, appending to, and managing HDF5 files specifically tailored for Timepix3 pixel hit data.
+`tpx3h5lib` is a lightweight C library for efficiently storing Timepix3 detector data provided by [katherinelib](https://github.com/petrmanek/libkatherine) in HDF5 format. It provides a simple interface for creating, appending to, and managing HDF5 files specifically tailored for Timepix3 pixel hit data.
 
 ## Features
 
