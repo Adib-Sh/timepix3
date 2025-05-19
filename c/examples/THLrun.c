@@ -16,9 +16,9 @@ static uint64_t pixel_counts[SENSOR_HEIGHT][SENSOR_WIDTH] = {0};
 static uint64_t n_hits = 0;
 
 // THL calibration settings
-#define THL_START 0     // Start THL value
-#define THL_END 498       // End THL value
-#define THL_STEP 2        // THL step size
+#define THL_START 300     // Start THL value
+#define THL_END 500       // End THL value
+#define THL_STEP 5        // THL step size
 #define FRAMES_PER_THL 1  // Number of frames to acquire at each THL value
 #define ACQ_TIME 1e8    // 100ms acquisition time per frame
 
@@ -269,8 +269,10 @@ void write_thl_scan_point(int thl, int frame_idx, uint64_t hits) {
     
     hid_t memspace = H5Screate_simple(1, count, NULL);
     
-    // Use the correct datatype for writing
-    H5Dwrite(h5_manager.thl_dataset, h5_manager.pixel_datatype, memspace, dataspace, H5P_DEFAULT, &point);
+    // Use the correct datatype for writing - FIXED: using proper THL scan datatype
+    hid_t thl_datatype = create_thl_scan_datatype();
+    H5Dwrite(h5_manager.thl_dataset, thl_datatype, memspace, dataspace, H5P_DEFAULT, &point);
+    H5Tclose(thl_datatype);
     
     H5Sclose(memspace);
     H5Sclose(dataspace);
