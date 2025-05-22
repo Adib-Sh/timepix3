@@ -48,7 +48,7 @@ typedef struct {
     uint8_t ftoa;
     uint16_t tot;
     uint32_t hit_count;
-    int thl;              // THL value for this hit
+    int thl;
 } PixelHit;
 
 // THL scan result structure
@@ -78,7 +78,7 @@ void run_acquisition(katherine_device_t *device, const katherine_config_t *confi
 static int thl_measurement_index = 0;
 static int total_thl_measurements = 0;
 
-// Call this at the start of your scan to calculate total measurements
+// ***MUST BE FIXED! Wring indexing!***
 void initialize_thl_scan_counter() {
     thl_measurement_index = 0;
     // Calculate exact number of steps
@@ -86,6 +86,7 @@ void initialize_thl_scan_counter() {
     printf("Total THL measurements: %d (from %.1f to %.1f mV in %.1f mV steps)\n",
            total_thl_measurements, THL_MIN_MV, THL_MAX_MV, THL_STEP_MV);
 }
+
 // HDF5 Initialization and Setup
 hid_t create_pixel_datatype() {
     hid_t pixel_type = H5Tcreate(H5T_COMPOUND, sizeof(PixelHit));
@@ -126,10 +127,7 @@ void initialize_h5_file() {
         return;
     }
 
-    // Create datatype for pixel hits
     h5_manager.pixel_datatype = create_pixel_datatype();
-
-    // Create dataset for all pixel hits (extensible)
     hsize_t initial_dims[1] = {0};
     hsize_t max_dims[1] = {H5S_UNLIMITED};
     hid_t dataspace_id = H5Screate_simple(1, initial_dims, max_dims);
@@ -141,10 +139,7 @@ void initialize_h5_file() {
     h5_manager.pixel_dataset = H5Dcreate(h5_manager.file_id, "/pixel_hits", h5_manager.pixel_datatype, 
                                        dataspace_id, H5P_DEFAULT, plist, H5P_DEFAULT);
     
-    // Create dataset for THL scan results (fixed size)
     hid_t thl_datatype = create_thl_scan_datatype();
-    // Calculate number of THL points with proper rounding
-    
     int num_thl_points = total_thl_measurements;
     printf("Creating THL dataset with %d slots (indices 0-%d)\n", 
         num_thl_points, num_thl_points-1);
@@ -153,8 +148,7 @@ void initialize_h5_file() {
     
     h5_manager.thl_dataset = H5Dcreate(h5_manager.file_id, "/thl_scan", thl_datatype, 
                                      thl_dataspace, H5P_DEFAULT, H5P_DEFAULT, H5P_DEFAULT);
-    
-    // Store THL scan parameters as attributes (updated for voltage stepping)
+
     hid_t attr_space = H5Screate(H5S_SCALAR);
     hid_t attr;
     
@@ -184,15 +178,12 @@ void initialize_h5_file() {
     H5Sclose(thl_dataspace);
     H5Pclose(plist);
     H5Sclose(dataspace_id);
-    
-    // Initialize current THL value
-    h5_manager.current_thl = 0; // Will be set in run_thl_scan
+    h5_manager.current_thl = 0;
 }
 
 void write_pixel_hits(const px_t *dpx, size_t count) {
     if (h5_manager.pixel_dataset < 0) return;
 
-    // First, process the hits (original logic)
     PixelHit *pixel_hits = malloc(count * sizeof(PixelHit));
     for (size_t i = 0; i < count; ++i) {
         int x = dpx[i].coord.x;
@@ -204,7 +195,6 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
         }
         
         pixel_counts[y][x]++;
-        
         pixel_hits[i].x = x;
         pixel_hits[i].y = y;
         pixel_hits[i].toa = dpx[i].toa;
@@ -214,7 +204,6 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
         pixel_hits[i].thl = h5_manager.current_thl;
     }
 
-    // Write the hits (original logic)
     hid_t filespace = H5Dget_space(h5_manager.pixel_dataset);
     hsize_t current_dims[1];
     H5Sget_simple_extent_dims(filespace, current_dims, NULL);
@@ -234,7 +223,6 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
     H5Sclose(memspace);
     H5Sclose(filespace);
 
-    // --- New: Write all pixels (including zeros) after processing hits ---
     PixelHit *all_pixels = malloc(SENSOR_WIDTH * SENSOR_HEIGHT * sizeof(PixelHit));
     size_t index = 0;
 
@@ -245,7 +233,7 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
             all_pixels[index].toa = 0;
             all_pixels[index].ftoa = 0;
             all_pixels[index].tot = 0;
-            all_pixels[index].hit_count = pixel_counts[y][x]; // Includes zeros
+            all_pixels[index].hit_count = pixel_counts[y][x];
             all_pixels[index].thl = h5_manager.current_thl;
             index++;
         }
@@ -273,8 +261,6 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
 
 void write_thl_scan_point(double thl_mv, uint64_t hits) {
     if (h5_manager.thl_dataset < 0) return;
-
-    // Add bounds checking
     if (thl_measurement_index >= total_thl_measurements) {
     printf("Error: Index %d >= dataset size %d (max index is %d)\n",
            thl_measurement_index, 
@@ -375,7 +361,7 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config, int thl_value) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 1e8; // 100ms per frame
+    config->acq_time                = 1e8;
     config->no_frames               = 1;
     config->bias                    = 155; // V
 
@@ -515,7 +501,6 @@ void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_
     // Store last frame info
     memcpy(&last_frame_info, info, sizeof(katherine_frame_info_t));
 }
-// Account for floating point rounding
 void pixels_received(void *user_ctx, const void *px, size_t count) {
     const px_t *dpx = (const px_t *) px;
     write_pixel_hits(dpx, count);
@@ -525,7 +510,6 @@ void reset_pixel_counts() {
     memset(pixel_counts, 0, sizeof(pixel_counts));
     n_hits = 0;
 }
-
 
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config) {
     // Acquisition setup
@@ -579,7 +563,6 @@ void run_thl_scan(katherine_device_t *device) {
         int fine;
         double actual_voltage;
 
-        // First try normal calculation
         coarse = (int)(thl_mv / COARSE_STEP_MV);
         double remaining_mv = thl_mv - (coarse * COARSE_STEP_MV);
         fine = (int)(remaining_mv / FINE_STEP_MV + 0.5);
@@ -610,11 +593,10 @@ void run_thl_scan(katherine_device_t *device) {
             printf("Frame %d/%d for %.1f mV\n", frame + 1, FRAMES_PER_THL, actual_voltage);
             reset_pixel_counts();
             run_acquisition(device, &config);
-            total_hits += n_hits;  // Use the global counter updated in frame_ended
+            total_hits += n_hits;
             usleep(100000);
         }
-        
-        // Write using actual voltage, not target
+    
         write_thl_scan_point(actual_voltage, total_hits);
     }
 }
