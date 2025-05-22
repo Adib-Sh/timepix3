@@ -5,6 +5,7 @@
 #include <unistd.h>
 #include <katherine/katherine.h>
 #include <hdf5.h>
+#include <math.h>
 
 static const char *remote_addr = "192.168.1.218"; //Device IP address
 typedef katherine_px_f_toa_tot_t px_t; //ACQ mode (Modes in px.h) Here we import all modes
@@ -15,17 +16,17 @@ typedef katherine_px_f_toa_tot_t px_t; //ACQ mode (Modes in px.h) Here we import
 static uint64_t pixel_counts[SENSOR_HEIGHT][SENSOR_WIDTH] = {0};
 static uint64_t n_hits = 0;
 
-// THL calibration settings
+// THL/DAC settings
 
-#define MAX_COARSE 15
-#define MAX_FINE 511
-#define FINE_STEP_MV 0.5
-#define COARSE_STEP_MV 80.0
+#define MAX_COARSE 15 //Vthreshold_coarse DAC limit
+#define MAX_FINE 511 //Vthreshold_fine DAC limit
+#define FINE_STEP_MV 0.5 //Vthreshold_fine step in mV
+#define COARSE_STEP_MV 80.0 //Vthreshold_coarse step in mV
 #define MAX_THRESHOLD_MV ((MAX_COARSE * COARSE_STEP_MV) + (MAX_FINE * FINE_STEP_MV))
 
-#define THL_MIN_MV 100.0  // Start at 100 mV to avoid noise edge
+#define THL_MIN_MV 820.0  // Start at 100 mV to avoid noise edge
 #define THL_MAX_MV 1200.0 // Conservative max voltage
-#define THL_STEP_MV 20.0  // Step in threshold voltage
+#define THL_STEP_MV 5.0  // Step in threshold voltage
 
 #define FRAMES_PER_THL 1
 
@@ -73,7 +74,18 @@ void adc_voltage(katherine_device_t *device);
 void reset_pixel_counts();
 void run_thl_scan(katherine_device_t *device);
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config);
+// Add a global counter to track actual measurement points
+static int thl_measurement_index = 0;
+static int total_thl_measurements = 0;
 
+// Call this at the start of your scan to calculate total measurements
+void initialize_thl_scan_counter() {
+    thl_measurement_index = 0;
+    // Calculate exact number of steps
+    total_thl_measurements = (int)((THL_MAX_MV - THL_MIN_MV) / THL_STEP_MV) + 1;
+    printf("Total THL measurements: %d (from %.1f to %.1f mV in %.1f mV steps)\n",
+           total_thl_measurements, THL_MIN_MV, THL_MAX_MV, THL_STEP_MV);
+}
 // HDF5 Initialization and Setup
 hid_t create_pixel_datatype() {
     hid_t pixel_type = H5Tcreate(H5T_COMPOUND, sizeof(PixelHit));
@@ -132,11 +144,10 @@ void initialize_h5_file() {
     // Create dataset for THL scan results (fixed size)
     hid_t thl_datatype = create_thl_scan_datatype();
     // Calculate number of THL points with proper rounding
-    int num_thl_points = (int)((THL_MAX_MV - THL_MIN_MV) / THL_STEP_MV) + 1;
-    printf("Creating THL dataset with %d entries (%.1f to %.1f mV in steps of %.1f mV)\n",
-           num_thl_points, THL_MIN_MV, THL_MAX_MV, THL_STEP_MV);
-
-    // Create dataset with exact size needed
+    
+    int num_thl_points = total_thl_measurements;
+    printf("Creating THL dataset with %d slots (indices 0-%d)\n", 
+        num_thl_points, num_thl_points-1);
     hsize_t thl_dims[1] = {num_thl_points};
     hid_t thl_dataspace = H5Screate_simple(1, thl_dims, NULL);
     
@@ -263,40 +274,42 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
 void write_thl_scan_point(double thl_mv, uint64_t hits) {
     if (h5_manager.thl_dataset < 0) return;
 
-    // Calculate total expected points
-    int total_points = (int)((THL_MAX_MV - THL_MIN_MV) / THL_STEP_MV) + 1;
-    
-    // Calculate index with proper rounding
-    int thl_index = (int)((thl_mv - THL_MIN_MV) / THL_STEP_MV + 0.5); // Round to nearest
-    
-    // Safety checks
-    if (thl_index < 0) thl_index = 0;
-    if (thl_index >= total_points) thl_index = total_points - 1;
+    // Add bounds checking
+    if (thl_measurement_index >= total_thl_measurements) {
+    printf("Error: Index %d >= dataset size %d (max index is %d)\n",
+           thl_measurement_index, 
+           total_thl_measurements,
+           total_thl_measurements-1);
+    return;
+}
 
-    printf("Writing THL %.1f mV at index %d/%d\n", thl_mv, thl_index, total_points-1);
+    printf("Writing THL %.1f mV at index %d/%d\n", 
+           thl_mv, thl_measurement_index, total_thl_measurements-1);
 
-    // Rest of the function remains the same...
-    THLScanPoint point;
-    point.thl = (int)(thl_mv * 1000);
-    point.hits = hits;
-    
-    hsize_t start[1] = {thl_index};
+    THLScanPoint point = {
+        .thl = (int)(thl_mv),
+        .hits = hits
+    };
+
+    hsize_t start[1] = {thl_measurement_index};
     hsize_t count[1] = {1};
     
     hid_t dataspace = H5Dget_space(h5_manager.thl_dataset);
     H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, start, NULL, count, NULL);
     
     hid_t memspace = H5Screate_simple(1, count, NULL);
-    hid_t thl_datatype = create_thl_scan_datatype();
+    H5Dwrite(h5_manager.thl_dataset, create_thl_scan_datatype(), memspace, dataspace, H5P_DEFAULT, &point);
     
-    herr_t status = H5Dwrite(h5_manager.thl_dataset, thl_datatype, memspace, dataspace, H5P_DEFAULT, &point);
-    if (status < 0) {
-        printf("Error writing THL scan point at index %d\n", thl_index);
-    }
-    
-    H5Tclose(thl_datatype);
     H5Sclose(memspace);
     H5Sclose(dataspace);
+    
+    thl_measurement_index++;
+
+    if (total_thl_measurements <= 0) {
+    printf("CRITICAL ERROR: total_thl_measurements=%d (Did you call initialize_thl_scan_counter()?)\n",
+           total_thl_measurements);
+    return;
+}
 }
 
 void close_h5_file() {
@@ -362,7 +375,7 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config, int thl_value) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 5e8; // 100ms per frame
+    config->acq_time                = 1e8; // 100ms per frame
     config->no_frames               = 1;
     config->bias                    = 155; // V
 
@@ -502,7 +515,7 @@ void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_
     // Store last frame info
     memcpy(&last_frame_info, info, sizeof(katherine_frame_info_t));
 }
-
+// Account for floating point rounding
 void pixels_received(void *user_ctx, const void *px, size_t count) {
     const px_t *dpx = (const px_t *) px;
     write_pixel_hits(dpx, count);
@@ -554,38 +567,47 @@ void run_acquisition(katherine_device_t *device, const katherine_config_t *confi
 }
 
 void run_thl_scan(katherine_device_t *device) {
-    //printf("\n=== Starting THL Calibration Scan ===\n");
-    //printf("THL range: %d to %d with step %d\n", THL_START, THL_END, THL_STEP);
-    //printf("Frames per THL: %d\n", FRAMES_PER_THL);
-    //printf("Acquisition time per frame: %.2f ms\n", ACQ_TIME / 1e6);
-    
+    initialize_thl_scan_counter();  // Initialize counter first!
     initialize_h5_file();
     
-    // Iterate through THL values
-    for (double thl_mv = THL_MIN_MV; thl_mv <= THL_MAX_MV; thl_mv += THL_STEP_MV) {
-        // Calculate coarse and fine from voltage
+    for (double thl_mv = THL_MIN_MV; thl_mv <= THL_MAX_MV + 0.1*THL_STEP_MV; thl_mv += THL_STEP_MV) {
         int coarse = (int)(thl_mv / COARSE_STEP_MV);
         double remaining_mv = thl_mv - (coarse * COARSE_STEP_MV);
-        int fine = (int)(remaining_mv / FINE_STEP_MV);
-
-        // Clamp values to valid DAC ranges
-        if (coarse > MAX_COARSE) coarse = MAX_COARSE;
+        int fine = (int)(remaining_mv / FINE_STEP_MV + 0.5);
+        
+        if (coarse > MAX_COARSE) {
+            coarse = MAX_COARSE;
+            remaining_mv = thl_mv - (coarse * COARSE_STEP_MV);
+            fine = (int)(remaining_mv / FINE_STEP_MV + 0.5);
+        }
         if (fine > MAX_FINE) fine = MAX_FINE;
+        if (fine < 0) fine = 0;
+        
+        double actual_voltage = (coarse * COARSE_STEP_MV) + (fine * FINE_STEP_MV);
+        
 
-        int combined_thl_code = (coarse << 9) | fine; // optional: useful for file labeling
+        printf("\nVoltage scan: target=%.1f mV → actual=%.1f mV (coarse=%d, fine=%d)\n", 
+               thl_mv, actual_voltage, coarse, fine);
+        
+        h5_manager.current_thl = actual_voltage; 
 
-        printf("\nSetting THL to %.1f mV → coarse=%d, fine=%d\n", thl_mv, coarse, fine);
-        h5_manager.current_thl = (coarse * 1000 + fine); // save numeric code or voltage if preferred
-
+        
         katherine_config_t config;
-        configure(&config, fine);           // sets Vthreshold_fine
-        config.dacs.named.Vthreshold_coarse = coarse;  // set coarse separately
+        configure(&config, fine);
+        config.dacs.named.Vthreshold_coarse = coarse;
 
+
+
+        uint64_t total_hits = 0;
         for (int frame = 0; frame < FRAMES_PER_THL; frame++) {
-            printf("Frame %d/%d for THL %.1f mV\n", frame + 1, FRAMES_PER_THL, thl_mv);
+            printf("Frame %d/%d for %.1f mV\n", frame + 1, FRAMES_PER_THL, actual_voltage);
             reset_pixel_counts();
             run_acquisition(device, &config);
-            usleep(100000); // 100ms between frames
+            total_hits += n_hits;  // Use the global counter updated in frame_ended
+            usleep(100000);
         }
+        
+        // Write using actual voltage, not target
+        write_thl_scan_point(actual_voltage, total_hits);
     }
 }

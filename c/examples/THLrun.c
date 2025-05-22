@@ -16,7 +16,7 @@ static uint64_t pixel_counts[SENSOR_HEIGHT][SENSOR_WIDTH] = {0};
 static uint64_t n_hits = 0;
 
 // THL calibration settings
-#define THL_START 300     // Start THL value
+#define THL_START 0     // Start THL value
 #define THL_END 500       // End THL value
 #define THL_STEP 5        // THL step size
 #define FRAMES_PER_THL 1  // Number of frames to acquire at each THL value
@@ -366,7 +366,7 @@ void configure(katherine_config_t *config, int thl_value) {
     config->dacs.named.Ibias_Ikrum           = 15;
     config->dacs.named.Vfbk                  = 164;
     config->dacs.named.Vthreshold_fine       = thl_value;  // THL value we're testing
-    config->dacs.named.Vthreshold_coarse     = 7;
+    config->dacs.named.Vthreshold_coarse     = 10;
     config->dacs.named.Ibias_DiscS1_ON       = 100;
     config->dacs.named.Ibias_DiscS1_OFF      = 8;
     config->dacs.named.Ibias_DiscS2_ON       = 128;
