@@ -20,12 +20,7 @@ COLORS = {'primary': '#3366CC',
 
 def analyze_thl_calibration(filename):
     """
-    Comprehensive analysis of THL calibration data from an H5 file.
-    
-    Parameters:
-    -----------
-    filename : str
-        Path to the H5 file containing THL calibration data
+    filename
     """
     # Extract timestamp from filename
     timestamp_str = filename.split('_')[-1].split('.')[0]
@@ -73,8 +68,7 @@ def analyze_thl_calibration(filename):
                 print(f"Available keys: {available_keys}")
                 
 def analyze_pixel_hits(pixel_hits):
-    """Perform detailed analysis on pixel hits data"""
-    # Get available fields in the dataset
+
     fields = pixel_hits.dtype.names
     print(f"📊 Available fields: {fields}\n")
     
@@ -248,7 +242,7 @@ def create_visualization(df, date_formatted):
 
 if __name__ == "__main__":
     # File to analyze
-    filename = "thl_calibration_20250521_061323.h5"
+    filename = "thl_calibration_FE55_300-1200_skip800-840_20250522_040712.h5"
     
     # Run analysis
     analyze_thl_calibration(filename)

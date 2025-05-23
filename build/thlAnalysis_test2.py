@@ -1,5 +1,6 @@
 import h5py
 import numpy as np
+import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.optimize import curve_fit
 from collections import defaultdict
@@ -14,19 +15,34 @@ def s_curve(x, A, x0, k):
 # -------------------------
 # Load HDF5 file
 # -------------------------
-filename = "thl_calibration_20250521_061323.h5"  # Replace with actual filename
+filename = "thl_calibration_FE55_300-1200_skip800-840_20250522_040712.h5"  # Replace with actual filename
 with h5py.File(filename, 'r') as f:
-    thl_data = f['/thl_scan'][:]
-    pixel_data = f['/pixel_hits'][:]
+    pixel_hits = f['pixel_hits'][:]
+    total_hits = len(pixel_hits)
+    print(f"🔢 Total Number of Pixel Hits: {total_hits:,}\n")
+    
+    # Create a DataFrame for easier analysis
+    df = pd.DataFrame({
+        'thl': pixel_hits['thl'],
+        'x': pixel_hits['x'] if 'x' in pixel_hits.dtype.names else None,
+        'y': pixel_hits['y'] if 'y' in pixel_hits.dtype.names else None,
+        'tot': pixel_hits['tot'] if 'tot' in pixel_hits.dtype.names else None,
+        'timestamp': pixel_hits['timestamp'] if 'timestamp' in pixel_hits.dtype.names else None
+    })
+    
+    # Drop columns that are None
+    df = df.dropna(axis=1, how='all')
 
 # -------------------------
 # Plot overall THL scan
 # -------------------------
-thls = np.array([point['thl'] for point in thl_data])
-hits = np.array([point['hits'] for point in thl_data])
+thls = df["thl"]
+thl_counts = df['thl'].value_counts().sort_index()
+unique_thls = thl_counts.index.values
+counts = thl_counts.values
 
 plt.figure(figsize=(8, 5))
-plt.plot(thls, hits, marker='o')
+plt.plot(unique_thls, counts, marker='o')
 plt.title("Total Hits vs THL")
 plt.xlabel("THL")
 plt.ylabel("Total Hits")
@@ -38,7 +54,7 @@ plt.show()
 # Organize pixel hit data
 # -------------------------
 pixel_hits = defaultdict(lambda: defaultdict(int))
-for hit in pixel_data:
+for hit in df:
     coord = (hit['x'], hit['y'])
     pixel_hits[coord][hit['thl']] += hit['hit_count']
 
