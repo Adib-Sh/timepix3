@@ -119,7 +119,7 @@ def plot_surface_3d(ax, xpos, ypos, zdata, title, xlabel='X Coordinate',
 setup_plot_style()
     
 # Load Data
-with h5py.File('pixel_data_Si_1e9s_20250406_033424.h5', 'r') as f:
+with h5py.File('pixel_data_20250523_111332.h5', 'r') as f:
     hits = f['/pixel_hits'][:]
 
 # Preprocessing

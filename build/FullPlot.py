@@ -24,7 +24,7 @@ mpl.rcParams['grid.color'] = 'white'
 # ======================
 # Load Data
 # ======================
-with h5py.File('pixel_data_Si_5e9s_20250406_033436.h5', 'r') as f:
+with h5py.File('pixel_data_20250523_104058.h5', 'r') as f:
     hits = f['/pixel_hits'][:]
 
 # ======================

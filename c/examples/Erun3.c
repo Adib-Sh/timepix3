@@ -217,8 +217,8 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 5e9; // ns
-    config->no_frames               = 1;
+    config->acq_time                = 1e9; // ns
+    config->no_frames               = 2;
     config->bias                    = 155; // V
 
     config->delayed_start           = false;
@@ -350,7 +350,7 @@ void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_
 
     printf("\n");
     printf("Ended frame %d.\n", frame_idx);
-    printf(" - tpx3->katherine lost %lu pixels\n", info->lost_pixels);
+    printf(" - tpx3->katherine lost %lu pixelsACQUISITION_MODE_EVENT_ITOT\n", info->lost_pixels);
     printf(" - katherine->pc sent %lu pixels\n", info->sent_pixels);
     printf(" - katherine->pc received %lu pixels\n", info->received_pixels);
     printf(" - state: %s\n", (completed ? "completed" : "not completed"));
