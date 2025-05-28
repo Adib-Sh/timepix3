@@ -16,7 +16,8 @@ typedef struct katherine_px_f_event_itot px_t; //ACQ mode (Modes in px.h) Here w
 static uint64_t pixel_counts[SENSOR_HEIGHT][SENSOR_WIDTH] = {0};
 static uint64_t n_hits = 0;
 static uint16_t event_count = 0;
-static uint8_t hit_count = 0;
+static uint16_t hit_count = 0;
+static uint16_t integral_tot = 0;
 
 // THL/DAC settings
 
@@ -61,7 +62,7 @@ typedef struct {
     int frame_idx;
     uint16_t event_count;
     uint8_t hit_count;
-    //uint64_t hits;
+    uint16_t integral_tot;
 } THLScanPoint;
 
 static H5FileManager h5_manager = {-1, -1, -1, -1};
@@ -80,15 +81,16 @@ void adc_voltage(katherine_device_t *device);
 void reset_pixel_counts();
 void run_thl_scan(katherine_device_t *device);
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config);
+void write_thl_scan_point(double thl_mv, uint16_t hits);
+
 // Add a global counter to track actual measurement points
 static int thl_measurement_index = 0;
 static int total_thl_measurements = 0;
 
-// ***MUST BE FIXED! Wring indexing!***
 void initialize_thl_scan_counter() {
     thl_measurement_index = 0;
     // Calculate exact number of steps
-    total_thl_measurements = (int)((THL_MAX_MV - THL_MIN_MV) / THL_STEP_MV) + 1;
+    total_thl_measurements = (int)round((THL_MAX_MV - THL_MIN_MV) / THL_STEP_MV) + 1;
     printf("Total THL measurements: %d (from %.1f to %.1f mV in %.1f mV steps)\n",
            total_thl_measurements, THL_MIN_MV, THL_MAX_MV, THL_STEP_MV);
 }
@@ -112,8 +114,8 @@ hid_t create_thl_scan_datatype() {
     hid_t thl_type = H5Tcreate(H5T_COMPOUND, sizeof(THLScanPoint));
     H5Tinsert(thl_type, "thl", HOFFSET(THLScanPoint, thl), H5T_NATIVE_INT);
     H5Tinsert(thl_type, "frame_idx", HOFFSET(THLScanPoint, frame_idx), H5T_NATIVE_INT);
-    H5Tinsert(thl_type, "hit_count", HOFFSET(PixelHit, hit_count), H5T_NATIVE_UINT8);
     H5Tinsert(thl_type, "event_count", HOFFSET(PixelHit, event_count), H5T_NATIVE_UINT16);
+    H5Tinsert(thl_type, "hit_count", HOFFSET(PixelHit, hit_count), H5T_NATIVE_UINT8);
     H5Tinsert(thl_type, "integral_tot", HOFFSET(PixelHit, integral_tot), H5T_NATIVE_UINT16);
     return thl_type;
 }
@@ -207,12 +209,10 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
         pixel_counts[y][x]++;
         pixel_hits[i].x = x;
         pixel_hits[i].y = y;
-        //pixel_hits[i].toa = dpx[i].toa;
-        //pixel_hits[i].ftoa = dpx[i].ftoa;
-        //pixel_hits[i].tot = dpx[i].tot;
-        pixel_hits[i].hit_count = dpx[i].hit_count;
-        pixel_hits[i].event_count = dpx[i].event_count;
-        pixel_hits[i].integral_tot = dpx[i].integral_tot;
+        pixel_hits[i].toa = dpx[i].toa;
+        pixel_hits[i].ftoa = dpx[i].ftoa;
+        pixel_hits[i].tot = dpx[i].tot;
+        pixel_hits[i].hit_count = pixel_counts[y][x];
         pixel_hits[i].thl = h5_manager.current_thl;
     }
 
@@ -235,61 +235,37 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
     H5Sclose(memspace);
     H5Sclose(filespace);
 
-    PixelHit *all_pixels = malloc(SENSOR_WIDTH * SENSOR_HEIGHT * sizeof(PixelHit));
-    size_t index = 0;
-
-    for (int y = 0; y < SENSOR_HEIGHT; ++y) {
-        for (int x = 0; x < SENSOR_WIDTH; ++x) {
-            all_pixels[index].x = x;
-            all_pixels[index].y = y;
-            //all_pixels[index].toa = 0;
-            //all_pixels[index].ftoa = 0;
-            //all_pixels[index].tot = 0;
-            all_pixels[index].hit_count = 0;
-            all_pixels[index].event_count = 0;
-            all_pixels[index].integral_tot = 0;
-            all_pixels[index].thl = h5_manager.current_thl;
-            index++;
-        }
-    }
-
-    // Write all pixels to the dataset
-    filespace = H5Dget_space(h5_manager.pixel_dataset);
-    H5Sget_simple_extent_dims(filespace, current_dims, NULL);
-
-    new_size[0] = current_dims[0] + SENSOR_WIDTH * SENSOR_HEIGHT;
-    H5Dset_extent(h5_manager.pixel_dataset, new_size);
-
-    start[0] = current_dims[0];
-    count_hslab[0] = SENSOR_WIDTH * SENSOR_HEIGHT;
-    memspace = H5Screate_simple(1, count_hslab, NULL);
-    
-    filespace = H5Dget_space(h5_manager.pixel_dataset);
-    H5Sselect_hyperslab(filespace, H5S_SELECT_SET, start, NULL, count_hslab, NULL);
-    H5Dwrite(h5_manager.pixel_dataset, h5_manager.pixel_datatype, memspace, filespace, H5P_DEFAULT, all_pixels);
-
-    free(all_pixels);
-    H5Sclose(memspace);
-    H5Sclose(filespace);
 }
 
 void write_thl_scan_point(double thl_mv, uint16_t hits) {
-    if (h5_manager.thl_dataset < 0) return;
+    if (total_thl_measurements <= 0) {
+        printf("CRITICAL ERROR: total_thl_measurements=%d (Did you call initialize_thl_scan_counter()?)\n",
+               total_thl_measurements);
+        return;
+    }
+    
+    if (h5_manager.thl_dataset < 0) {
+        printf("Error: THL dataset not initialized\n");
+        return;
+    }
+    
     if (thl_measurement_index >= total_thl_measurements) {
-    printf("Error: Index %d >= dataset size %d (max index is %d)\n",
-           thl_measurement_index, 
-           total_thl_measurements,
-           total_thl_measurements-1);
-    return;
-}
+        printf("Error: Index %d >= dataset size %d (max index is %d)\n",
+               thl_measurement_index, 
+               total_thl_measurements,
+               total_thl_measurements-1);
+        return;
+    }
 
     printf("Writing THL %.1f mV at index %d/%d\n", 
            thl_mv, thl_measurement_index, total_thl_measurements-1);
 
     THLScanPoint point = {
         .thl = (int)(thl_mv),
+        .frame_idx = thl_measurement_index,
         .event_count = event_count,
-        .hit_count = hit_count
+        .hit_count = hit_count,
+        .integral_tot = integral_tot
     };
 
     hsize_t start[1] = {thl_measurement_index};
@@ -299,18 +275,16 @@ void write_thl_scan_point(double thl_mv, uint16_t hits) {
     H5Sselect_hyperslab(dataspace, H5S_SELECT_SET, start, NULL, count, NULL);
     
     hid_t memspace = H5Screate_simple(1, count, NULL);
-    H5Dwrite(h5_manager.thl_dataset, create_thl_scan_datatype(), memspace, dataspace, H5P_DEFAULT, &point);
+    
+    // clean up
+    hid_t thl_datatype = create_thl_scan_datatype();
+    H5Dwrite(h5_manager.thl_dataset, thl_datatype, memspace, dataspace, H5P_DEFAULT, &point);
+    H5Tclose(thl_datatype);
     
     H5Sclose(memspace);
     H5Sclose(dataspace);
     
     thl_measurement_index++;
-
-    if (total_thl_measurements <= 0) {
-    printf("CRITICAL ERROR: total_thl_measurements=%d (Did you call initialize_thl_scan_counter()?)\n",
-           total_thl_measurements);
-    return;
-}
 }
 
 void close_h5_file() {
@@ -494,6 +468,9 @@ void adc_voltage(katherine_device_t *device) {
 
 void frame_started(void *user_ctx, int frame_idx) {
     n_hits = 0;
+    event_count = 0;
+    hit_count = 0;
+    integral_tot = 0;
     printf("Started frame %d at THL=%d.\n", frame_idx, h5_manager.current_thl);
 }
 
@@ -501,25 +478,27 @@ katherine_frame_info_t last_frame_info = {0};
 void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_frame_info_t *info) {
     // Save frame info for THL scan
     const double recv_perc = 100. * info->received_pixels / info->sent_pixels;
+    event_count = info->received_pixels;
     n_hits = info->received_pixels;
     printf("\n");
     printf("Ended frame %d at THL=%d.\n", frame_idx, h5_manager.current_thl);
-    printf(" - Pixels received: %lu\n", info->received_pixels);
-    printf(" - tpx3->katherine lost %lu pixels\n", info->lost_pixels);
-    printf(" - katherine->pc sent %lu pixels\n", info->sent_pixels);
-    printf(" - state: %s\n", (completed ? "completed" : "not completed"));
-    // Store THL scan point
-    write_thl_scan_point(h5_manager.current_thl, n_hits);
+    printf(" - Events: %u\n", event_count);
+    printf(" - Hits: %u\n", hit_count);
+    printf(" - Integral TOT: %u\n", integral_tot);
+    printf(" - State: %s\n", (completed ? "completed" : "not completed"));
     
+    write_thl_scan_point(h5_manager.current_thl, (uint16_t)hit_count);
     // Store last frame info
     memcpy(&last_frame_info, info, sizeof(katherine_frame_info_t));
 }
 
-pixels_received(void *user_ctx, const void *px, size_t count)
-{
-        const px_t *dpx = (const px_t *) px;
+void pixels_received(void *user_ctx, const void *px, size_t count) {
+    const px_t *dpx = (const px_t *)px;
+    write_pixel_hits(dpx, count);
+    
     for (size_t i = 0; i < count; ++i) {
-        printf("%d\t%d\t%lu\t%d\t%d\n", dpx[i].coord.x, dpx[i].coord.y, dpx[i].integral_tot, dpx[i].hit_count, dpx[i].event_count);
+        printf("%d\t%d\t%u\t%d\t%d\n", dpx[i].coord.x, dpx[i].coord.y, 
+               dpx[i].integral_tot, dpx[i].hit_count, dpx[i].event_count);
     }
 }
 
@@ -614,6 +593,5 @@ void run_thl_scan(katherine_device_t *device) {
             usleep(100000);
         }
     
-        write_thl_scan_point(actual_voltage, total_hits);
     }
 }
