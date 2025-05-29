@@ -53,6 +53,7 @@ typedef struct {
 } PixelHit;
 
 
+
 static H5FileManager h5_manager = {-1, -1, -1, -1};
 
 // Function prototypes
@@ -66,7 +67,7 @@ void get_readout_temp(katherine_device_t *device);
 void get_sensor_temp(katherine_device_t *device);
 void digital_test(katherine_device_t *device);
 void adc_voltage(katherine_device_t *device);
-//void reset_pixel_counts();
+void reset_pixel_counts();
 void run_thl_scan(katherine_device_t *device);
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config);
 void write_thl_scan_point(double thl_mv, uint16_t hits);
@@ -173,13 +174,12 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
             continue;
         }
         
-        //pixel_counts[y][x]++;
+        pixel_counts[y][x]++;
         pixel_hits[i].x = x;
         pixel_hits[i].y = y;
         pixel_hits[i].integral_tot = dpx[i].integral_tot;
         pixel_hits[i].event_count = dpx[i].event_count;
-        pixel_hits[i].hit_count = dpx[i].hit_count;
-        //pixel_hits[i].hit_count = pixel_counts[y][x];
+        pixel_hits[i].hit_count = pixel_counts[y][x];
         pixel_hits[i].thl = h5_manager.current_thl; 
     }
 
@@ -412,12 +412,12 @@ void pixels_received(void *user_ctx, const void *px, size_t count) {
                dpx[i].integral_tot, dpx[i].hit_count, dpx[i].event_count);
     }
 }
-/*
+
 void reset_pixel_counts() {
     memset(pixel_counts, 0, sizeof(pixel_counts));
     n_hits = 0;
 }
-*/
+
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config) {
     // Acquisition setup
     katherine_acquisition_t acq;
@@ -497,10 +497,10 @@ void run_thl_scan(katherine_device_t *device) {
         uint64_t total_hits = 0;
         for (int frame = 0; frame < FRAMES_PER_THL; frame++) {
             printf("Frame %d/%d for %.1f mV\n", frame + 1, FRAMES_PER_THL, actual_voltage);
-            //reset_pixel_counts();
+            reset_pixel_counts();
             run_acquisition(device, &config);
-            //total_hits += n_hits;
-            usleep(2000000); //2 seconds
+            total_hits += n_hits;
+            usleep(2000000); #2 seconds
         }
     
     }
