@@ -10,3 +10,6 @@ target_link_libraries(THLrun2_exclude800 katherine)
 add_executable(THLrun_frame_exclude800v2 THLrun_frame_exclude800v2.c)
 target_link_libraries(THLrun_frame_exclude800v2 katherine)
 
+add_executable(THLrun_frame_exclude800v3 THLrun_frame_exclude800v3.c)
+target_link_libraries(THLrun_frame_exclude800v3 katherine)
+
