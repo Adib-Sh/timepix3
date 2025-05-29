@@ -500,7 +500,7 @@ void run_thl_scan(katherine_device_t *device) {
             reset_pixel_counts();
             run_acquisition(device, &config);
             total_hits += n_hits;
-            usleep(2000000); #2 seconds
+            usleep(2000000); //2 seconds
         }
     
     }
