@@ -27,8 +27,8 @@ static uint16_t integral_tot = 0;
 #define COARSE_STEP_MV 80.0 //Vthreshold_coarse step in mV
 #define MAX_THRESHOLD_MV ((MAX_COARSE * COARSE_STEP_MV) + (MAX_FINE * FINE_STEP_MV))
 
-#define THL_MIN_MV 500.0  // Start at 100 mV to avoid noise edge
-#define THL_MAX_MV 1200.0 // Conservative max voltage
+#define THL_MIN_MV 700.0  // Start at 100 mV to avoid noise edge
+#define THL_MAX_MV 900.0 // Conservative max voltage
 #define THL_STEP_MV 2.0  // Step in threshold voltage
 
 #define FRAMES_PER_THL 1
@@ -55,11 +55,16 @@ typedef struct {
 
 static H5FileManager h5_manager = {-1, -1, -1, -1};
 
+
+static px_t *frame_pixels = NULL;
+static size_t frame_pixel_count = 0;
+static size_t frame_pixel_capacity = 0;
 // Function prototypes
 void configure(katherine_config_t *config, int thl_value, int coarse_value);
 void frame_started(void *user_ctx, int frame_idx);
 void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_frame_info_t *info);
 void pixels_received(void *user_ctx, const void *px, size_t count);
+//void data_received(void *, const char *, size_t);
 void get_chip_id(katherine_device_t *device);
 void get_comm_status(katherine_device_t *device);
 void get_readout_temp(katherine_device_t *device);
@@ -160,6 +165,8 @@ void initialize_h5_file() {
     h5_manager.current_thl = 0;
 }
 
+static char *raw_data_buffer = NULL;
+static size_t raw_data_size = 0;
 void write_pixel_hits(const px_t *dpx, size_t count) {
     if (h5_manager.pixel_dataset < 0) return;
 
@@ -256,7 +263,7 @@ int main(int argc, char *argv[]) {
 
     // Closing device
     katherine_device_fini(&device);
-
+    cleanup_pixel_buffer(); 
     close_h5_file(); 
     return 0;
 }
@@ -264,7 +271,7 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config, int thl_value, int coarse_value) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 5e8;
+    config->acq_time                = 1e8;
     config->no_frames               = 1;
     config->bias                    = 155; // V
 
@@ -385,37 +392,45 @@ void frame_started(void *user_ctx, int frame_idx) {
     event_count = 0;
     hit_count = 0;
     integral_tot = 0;
+    frame_pixel_count = 0; // Reset pixel collection for new frame
     printf("Started frame %d at THL=%d.\n", frame_idx, h5_manager.current_thl);
 }
-
 katherine_frame_info_t last_frame_info = {0};
 void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_frame_info_t *info) {
-    if (raw_data_buffer && raw_data_size > 0) {
-        // Process the raw data
-        size_t count = raw_data_size / sizeof(px_t);
-        px_t *dpx = (px_t *)raw_data_buffer;
-        printf("\n");
-        printf("Ended frame %d at THL=%d.\n", frame_idx, h5_manager.current_thl);
-        printf(" - Raw data size: %zu bytes\n", raw_data_size);
-        printf(" - Potential events: %zu\n", count);
-        printf(" - Events: %u\n", event_count);
-        printf(" - Hits: %u\n", hit_count);
-        printf(" - Integral TOT: %u\n", integral_tot);
-        printf(" - State: %s\n", (completed ? "completed" : "not completed"));
+    // Write all collected pixels to HDF5
+    if (frame_pixel_count > 0) {
+        write_pixel_hits(frame_pixels, frame_pixel_count);
+        printf("Wrote %zu pixels to HDF5 file\n", frame_pixel_count);
+    }
     
-        // Write pixel hits to HDF5
-        write_pixel_hits(dpx, count);
-        
-        // Free the buffer
-        free(raw_data_buffer);
-        raw_data_buffer = NULL;
-        raw_data_size = 0;
+    // Save frame info for THL scan
+    const double recv_perc = 100. * info->received_pixels / info->sent_pixels;
+    event_count = info->received_pixels;
+    n_hits = info->received_pixels;
+    printf("\n");
+    printf("Ended frame %d at THL=%d.\n", frame_idx, h5_manager.current_thl);
+    printf(" - Events: %u\n", event_count);
+    printf(" - Hits: %u\n", hit_count);
+    printf(" - Integral TOT: %u\n", integral_tot);
+    printf(" - State: %s\n", (completed ? "completed" : "not completed"));
+    
+    // Store last frame info
+    //memcpy(&last_frame_info, info, sizeof(katherine_frame_info_t));
 }
 
-static char *raw_data_buffer = NULL;
-static size_t raw_data_size = 0;
+void cleanup_pixel_buffer() {
+    if (frame_pixels) {
+        free(frame_pixels);
+        frame_pixels = NULL;
+        frame_pixel_capacity = 0;
+        frame_pixel_count = 0;
+    }
+}
 
-void data_received(void *user_ctx, const void *data, size_t size) {
+
+/*
+void data_received(void *user_ctx, const char *data, size_t size) {
+    const void *void_data = (const char *)data;
     // Store raw data for processing in frame_ended
     if (raw_data_buffer) {
         raw_data_buffer = realloc(raw_data_buffer, raw_data_size + size);
@@ -431,8 +446,36 @@ void data_received(void *user_ctx, const void *data, size_t size) {
     memcpy(raw_data_buffer + raw_data_size, data, size);
     raw_data_size += size;
 }
+*/
+
+
+// Modified pixels_received function - now just collects pixels
+void pixels_received(void *user_ctx, const void *px, size_t count) {
+    const px_t *dpx = (const px_t *)px;   
+    
+    // Ensure we have enough capacity
+    if (frame_pixel_count + count > frame_pixel_capacity) {
+        frame_pixel_capacity = (frame_pixel_count + count) * 2; // Double the capacity
+        frame_pixels = realloc(frame_pixels, frame_pixel_capacity * sizeof(px_t));
+        if (!frame_pixels) {
+            printf("Error: Failed to allocate memory for frame pixels\n");
+            return;
+        }
+    }
+    
+    // Copy pixels to frame buffer
+    memcpy(&frame_pixels[frame_pixel_count], dpx, count * sizeof(px_t));
+    frame_pixel_count += count;
+    
+    // Keep the debug output if needed
+    //for (size_t i = 0; i < count; ++i) {
+        //printf("%d\t%d\t%u\t%d\t%d\n", dpx[i].coord.x, dpx[i].coord.y, 
+               //dpx[i].integral_tot, dpx[i].hit_count, dpx[i].event_count);
+    //}
+}
 
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config) {
+
     // Acquisition setup
     katherine_acquisition_t acq;
     int res = katherine_acquisition_init(&acq, device, NULL, 
@@ -446,7 +489,7 @@ void run_acquisition(katherine_device_t *device, const katherine_config_t *confi
     // Set acquisition handlers
     acq.handlers.frame_started = frame_started;
     acq.handlers.frame_ended = frame_ended;
-    acq.handlers.data_received = data_received;
+    acq.handlers.pixels_received = pixels_received;
 
     // Begin acquisition
     res = katherine_acquisition_begin(&acq, config, 
@@ -469,6 +512,8 @@ void run_acquisition(katherine_device_t *device, const katherine_config_t *confi
 
     // Finalize acquisition
     katherine_acquisition_fini(&acq);
+    cleanup_pixel_buffer(); 
+    
 }
 
 void run_thl_scan(katherine_device_t *device) {
@@ -476,10 +521,12 @@ void run_thl_scan(katherine_device_t *device) {
     initialize_h5_file();
 
     for (double thl_mv = THL_MIN_MV; thl_mv <= THL_MAX_MV; thl_mv += THL_STEP_MV) {
+        /*
         if (thl_mv >= 799.0 && thl_mv <= 846.0) {
             printf("Skipping voltage range 800-845 mV (current target: %.1f mV)\n", thl_mv);
             continue;
         }
+        */
         int coarse;
         int fine;
         double actual_voltage;
@@ -514,7 +561,7 @@ void run_thl_scan(katherine_device_t *device) {
             //reset_pixel_counts();
             run_acquisition(device, &config);
             //total_hits += n_hits;
-            usleep(2000000); //2 seconds
+            usleep(100000); //0.1 seconds
         }
     
     }
