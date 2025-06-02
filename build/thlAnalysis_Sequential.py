@@ -13,7 +13,7 @@ from PIL import Image
 import io
 
 # Configuration
-filename = "thl_calibration_FE55-500ms-500-1200-Sequential_20250524_131422.h5"  # Update with your actual filename
+filename = "thl_calibration_20250529_144943.h5"  # Update with your actual filename
 sensor_width = 256
 sensor_height = 256
 n_pixels_to_plot = 5
@@ -57,7 +57,7 @@ with h5py.File(filename, 'r') as f:
 # Reconstruct THL values from attributes
 unique_thls = np.arange(thl_start, thl_end + thl_step, thl_step)
 print(f"\nTHL levels: {len(unique_thls)} points from {thl_start} to {thl_end} mV")
-"""
+
 # Organize pixel data by THL level
 thl_pixel_data = {}
 for thl in unique_thls:
@@ -257,4 +257,3 @@ with open(summary_path, 'w') as f:
     
 
 print("\nAnalysis complete. Results saved in:", output_dir)
-"""

@@ -15,7 +15,7 @@ def s_curve(x, A, x0, k):
 # -------------------------
 # Load HDF5 file
 # -------------------------
-filename = "thl_calibration_FE55_300-1200_skip800-840_20250522_040712.h5"  # Replace with actual filename
+filename = "thl_calibration_20250524_112503.h5"  # Replace with actual filename
 with h5py.File(filename, 'r') as f:
     pixel_hits = f['pixel_hits'][:]
     total_hits = len(pixel_hits)
@@ -30,7 +30,7 @@ with h5py.File(filename, 'r') as f:
         'timestamp': pixel_hits['timestamp'] if 'timestamp' in pixel_hits.dtype.names else None
     })
     
-    # Drop columns that are None
+    # Drop columns that are None´
     df = df.dropna(axis=1, how='all')
 
 # -------------------------
