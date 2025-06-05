@@ -350,7 +350,7 @@ void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_
 
     printf("\n");
     printf("Ended frame %d.\n", frame_idx);
-    printf(" - tpx3->katherine lost %lu pixelsACQUISITION_MODE_EVENT_ITOT\n", info->lost_pixels);
+    printf(" - tpx3->katherine lost %lu pixels\n", info->lost_pixels);
     printf(" - katherine->pc sent %lu pixels\n", info->sent_pixels);
     printf(" - katherine->pc received %lu pixels\n", info->received_pixels);
     printf(" - state: %s\n", (completed ? "completed" : "not completed"));
