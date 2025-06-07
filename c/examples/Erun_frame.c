@@ -16,7 +16,11 @@ typedef struct katherine_px_f_event_itot px_t; //ACQ mode (Modes in px.h) Here w
 #define SENSOR_HEIGHT 256
 static uint64_t pixel_counts[SENSOR_HEIGHT][SENSOR_WIDTH] = {0};
 static uint64_t n_hits = 0;
-/*
+static uint16_t pixel_count = 0;
+static uint32_t event_count = 0;
+static uint16_t integral_tot = 0;
+
+
 // HDF5 File Structure
 typedef struct {
     hid_t file_id;
@@ -29,14 +33,18 @@ typedef struct {
 typedef struct {
     int x;
     int y;
-    //uint64_t toa;
-    //uint8_t ftoa;
-    uint16_t itot;
-    uint32_t hit_count;
+    uint16_t integral_tot;
+    uint16_t event_count;
+    uint8_t hit_count;
 } PixelHit;
 
 static H5FileManager h5_manager = {-1, -1, -1};
-*/
+
+
+static px_t *frame_pixels = NULL;
+static size_t frame_pixel_count = 0;
+static size_t frame_pixel_capacity = 0;
+
 // Function prototypes
 void configure(katherine_config_t *config);
 void frame_started(void *user_ctx, int frame_idx);
@@ -48,19 +56,17 @@ void get_readout_temp(katherine_device_t *device);
 void get_sensor_temp(katherine_device_t *device);
 void digital_test(katherine_device_t *device);
 void adc_voltage(katherine_device_t *device);
-void reset_pixel_counts();
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config);
 void enable_scanning_modes();
-/*
+
 // HDF5 Initialization and Setup
 hid_t create_pixel_datatype() {
     hid_t pixel_type = H5Tcreate(H5T_COMPOUND, sizeof(PixelHit));
     H5Tinsert(pixel_type, "x", HOFFSET(PixelHit, x), H5T_NATIVE_INT);
     H5Tinsert(pixel_type, "y", HOFFSET(PixelHit, y), H5T_NATIVE_INT);
-    //H5Tinsert(pixel_type, "toa", HOFFSET(PixelHit, toa), H5T_NATIVE_UINT64);
-    //H5Tinsert(pixel_type, "ftoa", HOFFSET(PixelHit, ftoa), H5T_NATIVE_UINT8);
-    H5Tinsert(pixel_type, "itot", HOFFSET(PixelHit, itot), H5T_NATIVE_UINT32);
-    H5Tinsert(pixel_type, "hit_count", HOFFSET(PixelHit, hit_count), H5T_NATIVE_UINT32);
+    H5Tinsert(pixel_type, "hit_count", HOFFSET(PixelHit, hit_count), H5T_NATIVE_UINT8);
+    H5Tinsert(pixel_type, "event_count", HOFFSET(PixelHit, event_count), H5T_NATIVE_UINT16);
+    H5Tinsert(pixel_type, "integral_tot", HOFFSET(PixelHit, integral_tot), H5T_NATIVE_UINT16);
     return pixel_type;
 }
 
@@ -70,7 +76,7 @@ void initialize_h5_file() {
     time_t now;
     time(&now);
     struct tm *timeinfo = localtime(&now);
-    strftime(filename, sizeof(filename), "pixel_data_%Y%m%d_%H%M%S.h5", timeinfo);
+    strftime(filename, sizeof(filename), "ToTdata_frame_%Y%m%d_%H%M%S.h5", timeinfo);
 
     // Create file
     hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -118,17 +124,13 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
             printf("Warning: Pixel coordinates out of bounds: (%d, %d)\n", x, y);
             continue;
         }
-        
-        // Increment the hit count for this pixel location
-        pixel_counts[y][x]++;
-        
+                
         // Populate the hit data structure
         pixel_hits[i].x = x;
         pixel_hits[i].y = y;
-        pixel_hits[i].toa = dpx[i].toa;
-        pixel_hits[i].ftoa = dpx[i].ftoa;
-        pixel_hits[i].tot = dpx[i].itot;
-        pixel_hits[i].hit_count = pixel_counts[y][x]; // Store the current count
+        pixel_hits[i].integral_tot = dpx[i].integral_tot;
+        pixel_hits[i].event_count = dpx[i].event_count;
+        pixel_hits[i].hit_count = frame_pixel_count;
     }
 
     // Get current dataset dims
@@ -171,7 +173,7 @@ void close_h5_file() {
     h5_manager.pixel_datatype = -1;
     h5_manager.current_bias = 0.0;
 }
-*/
+
 int main(int argc, char *argv[]) {
     // Loading config
     katherine_config_t c; 
@@ -217,8 +219,8 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 1e9; // ns
-    config->no_frames               = 5;
+    config->acq_time                = 5e8; // 500ms
+    config->no_frames               = 1;
     config->bias                    = 155; // V
 
     config->delayed_start           = false;
@@ -242,7 +244,7 @@ void configure(katherine_config_t *config) {
     config->dacs.named.Ibias_Ikrum           = 15;
     config->dacs.named.Vfbk                  = 164;
     config->dacs.named.Vthreshold_fine       = 224;
-    config->dacs.named.Vthreshold_coarse     = 9;
+    config->dacs.named.Vthreshold_coarse     = 4;
     config->dacs.named.Ibias_DiscS1_ON       = 100;
     config->dacs.named.Ibias_DiscS1_OFF      = 8;
     config->dacs.named.Ibias_DiscS2_ON       = 128;
@@ -338,47 +340,64 @@ void adc_voltage(katherine_device_t *device) {
 
 void frame_started(void *user_ctx, int frame_idx) {
     n_hits = 0;
-
+    event_count = 0;
+    integral_tot = 0;
+    frame_pixel_count = 0;
     printf("Started frame %d.\n", frame_idx);
 
 }
 
 katherine_frame_info_t last_frame_info = {0};
 void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_frame_info_t *info) {
+    // Write all collected pixels to HDF5
+    if (frame_pixel_count > 0) {
+        write_pixel_hits(frame_pixels, frame_pixel_count);
+        printf("Wrote %zu pixels to HDF5 file\n", frame_pixel_count);
+    }
     // Existing frame_ended logic
     const double recv_perc = 100. * info->received_pixels / info->sent_pixels;
 
     printf("\n");
-    printf("Ended frame %d.\n", frame_idx);
+    event_count = info->received_pixels;
+
+    printf("\n");
     printf(" - tpx3->katherine lost %lu pixels\n", info->lost_pixels);
     printf(" - katherine->pc sent %lu pixels\n", info->sent_pixels);
-    printf(" - katherine->pc received %lu pixels\n", info->received_pixels);
-    printf(" - state: %s\n", (completed ? "completed" : "not completed"));
-    printf(" - start time: %lu\n", info->start_time.d);
-    printf(" - end time: %lu\n", info->end_time.d);
+    printf(" - Events: %u\n", event_count);
+    printf(" - Integral TOT: %u\n", integral_tot);
+    printf(" - State: %s\n", (completed ? "completed" : "not completed"));
 
     // Store last frame info
     memcpy(&last_frame_info, info, sizeof(katherine_frame_info_t));
 }
 
-pixels_received(void *user_ctx, const void *px, size_t count)
-{
-    n_hits += count;
-
-    const px_t *dpx = (const px_t *) px;
-    for (size_t i = 0; i < count; ++i) {
-        printf("%d\t%d\t%lu\t%d\t%d\n", dpx[i].coord.x, dpx[i].coord.y, dpx[i].integral_tot, dpx[i].hit_count, dpx[i].event_count);
+void pixels_received(void *user_ctx, const void *px, size_t count) {
+    const px_t *dpx = (const px_t *)px;   
+    
+    // Ensure we have enough capacity
+    if (frame_pixel_count + count > frame_pixel_capacity) {
+        frame_pixel_capacity = (frame_pixel_count + count) * 2; // Double the capacity
+        frame_pixels = realloc(frame_pixels, frame_pixel_capacity * sizeof(px_t));
+        if (!frame_pixels) {
+            printf("Error: Failed to allocate memory for frame pixels\n");
+            return;
+        }
     }
+    
+    // Copy pixels to frame buffer
+    memcpy(&frame_pixels[frame_pixel_count], dpx, count * sizeof(px_t));
+    frame_pixel_count += count;
+    
+    // Keep the debug output if needed
+    //for (size_t i = 0; i < count; ++i) {
+        //printf("%d\t%d\t%u\t%d\t%d\n", dpx[i].coord.x, dpx[i].coord.y, 
+               //dpx[i].integral_tot, dpx[i].hit_count, dpx[i].event_count);
+    //}
 }
 
-
-void reset_pixel_counts() {
-    memset(pixel_counts, 0, sizeof(pixel_counts));
-    n_hits = 0;
-}
 
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config) {
-    //initialize_h5_file();
+    initialize_h5_file();
     // Acquisition setup
     katherine_acquisition_t acq;
     int res = katherine_acquisition_init(&acq, device, NULL, 

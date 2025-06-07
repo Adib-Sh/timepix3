@@ -70,7 +70,7 @@ void initialize_h5_file() {
     time_t now;
     time(&now);
     struct tm *timeinfo = localtime(&now);
-    strftime(filename, sizeof(filename), "pixel_data_%Y%m%d_%H%M%S.h5", timeinfo);
+    strftime(filename, sizeof(filename), "ToTdata_datadriven_%Y%m%d_%H%M%S.h5", timeinfo);
 
     // Create file
     hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
