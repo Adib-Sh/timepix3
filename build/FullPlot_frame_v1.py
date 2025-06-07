@@ -126,8 +126,8 @@ def main(input_file):
     ax2 = fig.add_subplot(122)
     plot_heatmap_2d(ax2, mean_event_clean, "2D Per-Pixel Event Count", zlabel="Mean Event Count")
     plt.tight_layout()
-    plt.show()
     plt.savefig(os.path.join(output_dir, 'event_count_full.png'), dpi=150)
+    plt.show()
     plt.close()
 
     # ===== Plot: Mean Event Count (Binned) =====
@@ -139,8 +139,8 @@ def main(input_file):
     ax2 = fig.add_subplot(122)
     plot_heatmap_2d(ax2, mean_event_bin_clean, "2D Binned Event Count", zlabel="Mean Event Count")
     plt.tight_layout()
-    plt.show()
     plt.savefig(os.path.join(output_dir, 'event_count_binned.png'), dpi=150)
+    plt.show()
     plt.close()
 
     # ===== Plot: Mean ToT (Full) =====
@@ -153,6 +153,7 @@ def main(input_file):
     plot_heatmap_2d(ax2, mean_tot_clean, "2D Per-Pixel ToT", zlabel="Mean ToT")
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, 'tot_full.png'), dpi=150)
+    plt.show()
     plt.close()
 
     # ===== Plot: ToT Histogram =====
@@ -163,11 +164,11 @@ def main(input_file):
     ax.set_title('ToT Distribution')
     ax.grid(True, linestyle=':', alpha=0.7)
     plt.tight_layout()
-    plt.show()
     plt.savefig(os.path.join(output_dir, 'tot_histogram.png'), dpi=150)
+    plt.show()
     plt.close()
 
     print(f"Plotting complete. Results in: {output_dir}")
 
 if __name__ == "__main__":
-    main("ToTdata_frame_20250607_135407.h5")  # Replace with your file name
+    main("ToTdata_frame_20250607_135307.h5")  # Replace with your file name
