@@ -9,7 +9,7 @@
 
 
 static const char *remote_addr = "192.168.1.218"; //Device IP address
-typedef katherine_px_f_toa_tot_t px_t; //ACQ mode (Modes in px.h) Here we import all modes
+typedef katherine_px_f_toa_tot_t px_t; //ACQ mode (Modes in px.h)
 
 // Global variables
 #define SENSOR_WIDTH 256
@@ -217,7 +217,7 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 5e8; // 500ms
+    config->acq_time                = 1e9; // 500ms
     config->no_frames               = 1;
     config->bias                    = 155; // V
 
@@ -241,7 +241,7 @@ void configure(katherine_config_t *config) {
     config->dacs.named.VPReamp_NCAS          = 128;
     config->dacs.named.Ibias_Ikrum           = 15;
     config->dacs.named.Vfbk                  = 164;
-    config->dacs.named.Vthreshold_fine       = 224;
+    config->dacs.named.Vthreshold_fine       = 424;
     config->dacs.named.Vthreshold_coarse     = 7;
     config->dacs.named.Ibias_DiscS1_ON       = 100;
     config->dacs.named.Ibias_DiscS1_OFF      = 8;
