@@ -75,6 +75,7 @@ void adc_voltage(katherine_device_t *device);
 void run_thl_scan(katherine_device_t *device);
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config);
 void write_thl_scan_point(double thl_mv, uint16_t hits);
+void cleanup_pixel_buffer(void);
 
 // Add a global counter to track actual measurement points
 static int thl_measurement_index = 0;
@@ -109,8 +110,8 @@ void initialize_h5_file() {
     time_t now;
     time(&now);
     struct tm *timeinfo = localtime(&now);
-    strftime(filename, sizeof(filename), "thl_calibration_%Y%m%d_%H%M%S.h5", timeinfo);
-
+    strftime(filename, sizeof(filename), "thlscan_frame_%Y%m%d_%H%M%S.h5", timeinfo);
+    
     // Create file
     hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
     H5Pset_libver_bounds(plist_id, H5F_LIBVER_LATEST, H5F_LIBVER_LATEST);
@@ -210,8 +211,6 @@ void write_pixel_hits(const px_t *dpx, size_t count) {
     H5Sclose(filespace);
 }
 
-
-
 void close_h5_file() {
     if (h5_manager.pixel_dataset >= 0) {
         H5Dclose(h5_manager.pixel_dataset);
@@ -271,7 +270,7 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config, int thl_value, int coarse_value) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 1e8;
+    config->acq_time                = 5e8;
     config->no_frames               = 1;
     config->bias                    = 155; // V
 
@@ -418,7 +417,7 @@ void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_
     //memcpy(&last_frame_info, info, sizeof(katherine_frame_info_t));
 }
 
-void cleanup_pixel_buffer() {
+void cleanup_pixel_buffer(void) {
     if (frame_pixels) {
         free(frame_pixels);
         frame_pixels = NULL;
@@ -521,12 +520,12 @@ void run_thl_scan(katherine_device_t *device) {
     initialize_h5_file();
 
     for (double thl_mv = THL_MIN_MV; thl_mv <= THL_MAX_MV; thl_mv += THL_STEP_MV) {
-        /*
-        if (thl_mv >= 799.0 && thl_mv <= 846.0) {
-            printf("Skipping voltage range 800-845 mV (current target: %.1f mV)\n", thl_mv);
+        
+        if (thl_mv >= 810.0 && thl_mv <= 846.0) {
+            printf("Skipping voltage range 810-845 mV (current target: %.1f mV)\n", thl_mv);
             continue;
         }
-        */
+    
         int coarse;
         int fine;
         double actual_voltage;

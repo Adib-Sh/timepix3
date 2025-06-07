@@ -14,7 +14,7 @@ from PIL import Image
 import io
 
 
-filename = "thl_calibration_NoSourse-500ms-500-1200-DataDriven_20250524_184256.h5"  # Insert filename here
+filename = "thlscan_datadriven_20250605_114938.h5"  # Insert filename here
 
 sensor_width = 256
 sensor_height = 256

@@ -24,8 +24,8 @@ static uint64_t n_hits = 0;
 #define COARSE_STEP_MV 80.0 //Vthreshold_coarse step in mV
 #define MAX_THRESHOLD_MV ((MAX_COARSE * COARSE_STEP_MV) + (MAX_FINE * FINE_STEP_MV))
 
-#define THL_MIN_MV 500.0  // Start at 100 mV to avoid noise edge
-#define THL_MAX_MV 1200.0 // Conservative max voltage
+#define THL_MIN_MV 700.0  // Start at 100 mV to avoid noise edge
+#define THL_MAX_MV 900.0 // Conservative max voltage
 #define THL_STEP_MV 2.0  // Step in threshold voltage
 
 #define FRAMES_PER_THL 1
@@ -88,7 +88,7 @@ void initialize_h5_file() {
     time_t now;
     time(&now);
     struct tm *timeinfo = localtime(&now);
-    strftime(filename, sizeof(filename), "thl_calibration_%Y%m%d_%H%M%S.h5", timeinfo);
+    strftime(filename, sizeof(filename), "thlscan_datadriven_%Y%m%d_%H%M%S.h5", timeinfo);
 
     // Create file
     hid_t plist_id = H5Pcreate(H5P_FILE_ACCESS);
@@ -439,11 +439,11 @@ void run_thl_scan(katherine_device_t *device) {
     initialize_h5_file();
     for (double thl_mv = THL_MIN_MV; thl_mv <= THL_MAX_MV; thl_mv += THL_STEP_MV) {
         
-        if (thl_mv >= 798.0 && thl_mv <= 846.0) {
-            printf("Skipping voltage range 800-845 mV (current target: %.1f mV)\n", thl_mv);
+        if (thl_mv >= 810.0 && thl_mv <= 846.0) {
+            printf("Skipping voltage range 810-845 mV (current target: %.1f mV)\n", thl_mv);
             continue;
         }
-
+    
         int coarse;
         int fine;
         double actual_voltage;
@@ -479,7 +479,7 @@ void run_thl_scan(katherine_device_t *device) {
             reset_pixel_counts();
             run_acquisition(device, &config);
             total_hits += n_hits;
-            usleep(100000);
+            usleep(100000); //0.1 seconds
         }
     
     }
