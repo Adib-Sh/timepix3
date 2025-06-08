@@ -98,10 +98,10 @@ def plot_surface_3d(ax, xpos, ypos, zdata, title, xlabel='X Coordinate',
                  bbox=dict(facecolor='black', alpha=0.6, edgecolor='white'))
     
     return surf
-
+"""
 def create_report_file(report_path, input_file, hits, hit_count_map, time_ns, 
                       mean_tot_full_clean, mean_toa_full_clean, tot_values):
-    """Create a comprehensive text report with all analysis results."""
+    #Create a comprehensive text report with all analysis results.
     with open(report_path, 'w') as f:
         f.write(f"Pixel Data Analysis Report\n")
         f.write(f"Generated on: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
@@ -149,7 +149,7 @@ def create_report_file(report_path, input_file, hits, hit_count_map, time_ns,
         f.write(f"Hit rate std dev: {np.std(hit_rates):.2f} hits/s\n")
         f.write(f"Min hit rate: {np.min(hit_rates):.2f} hits/s\n")
         f.write(f"Max hit rate: {np.max(hit_rates):.2f} hits/s\n")
-
+"""
 # ======================
 # Main Analysis
 # ======================
@@ -305,7 +305,7 @@ def main(input_file):
     plt.savefig(os.path.join(output_dir, '2_binned_hit_map.png'), dpi=150, bbox_inches='tight')
     plt.show()
     plt.close()
-    
+    """
     # ======================
     # Process ToT and ToA data for both 256x256 and 32x32 binned
     # ======================
@@ -610,7 +610,7 @@ def main(input_file):
                       mean_tot_full_clean, mean_toa_full_clean, tot_values)
     
     print(f"Analysis complete! Results saved in: {output_dir}")
-
+    """
 if __name__ == "__main__":
-    input_file = 'ToTdata_datadriven_20250607_133516.h5'  # Default input file
+    input_file = 'ToTdata_datadriven_20250608_112924.h5' 
     main(input_file)
