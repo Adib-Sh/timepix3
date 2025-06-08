@@ -27,8 +27,8 @@ static uint16_t integral_tot = 0;
 #define COARSE_STEP_MV 80.0 //Vthreshold_coarse step in mV
 #define MAX_THRESHOLD_MV ((MAX_COARSE * COARSE_STEP_MV) + (MAX_FINE * FINE_STEP_MV))
 
-#define THL_MIN_MV 700.0  // Start at 100 mV to avoid noise edge
-#define THL_MAX_MV 900.0 // Conservative max voltage
+#define THL_MIN_MV 300.0  // Start at 100 mV to avoid noise edge
+#define THL_MAX_MV 1200.0 // Conservative max voltage
 #define THL_STEP_MV 2.0  // Step in threshold voltage
 
 #define FRAMES_PER_THL 1
