@@ -13,7 +13,7 @@ from PIL import Image
 import io
 
 # Configuration
-filename = "thlscan_frame_20250605_114724.h5"  # Update with your actual filename
+filename = "thlscan_frame_20250607_135507.h5"  # Update with your actual filename
 sensor_width = 256
 sensor_height = 256
 n_pixels_to_plot = 5

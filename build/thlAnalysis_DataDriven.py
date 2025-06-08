@@ -14,7 +14,7 @@ from PIL import Image
 import io
 
 
-filename = "thlscan_datadriven_20250605_114938.h5"  # Insert filename here
+filename = "thlscan_datadriven_20250607_135621.h5"  # Insert filename here
 
 sensor_width = 256
 sensor_height = 256
