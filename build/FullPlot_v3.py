@@ -305,7 +305,7 @@ def main(input_file):
     plt.savefig(os.path.join(output_dir, '2_binned_hit_map.png'), dpi=150, bbox_inches='tight')
     plt.show()
     plt.close()
-    """
+
     # ======================
     # Process ToT and ToA data for both 256x256 and 32x32 binned
     # ======================
@@ -610,7 +610,7 @@ def main(input_file):
                       mean_tot_full_clean, mean_toa_full_clean, tot_values)
     
     print(f"Analysis complete! Results saved in: {output_dir}")
-    """
+
 if __name__ == "__main__":
-    input_file = 'ToTdata_datadriven_20250608_112924.h5' 
+    input_file = 'ToTdata_datadriven_20250608_115316.h5' 
     main(input_file)
