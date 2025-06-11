@@ -604,10 +604,6 @@ def main(input_file):
     plt.show()
     plt.close()
     
-    # Create the report file
-    report_path = os.path.join(output_dir, f'report_{base_name}.txt')
-    create_report_file(report_path, input_file, hits, hit_count_map, time_ns, 
-                      mean_tot_full_clean, mean_toa_full_clean, tot_values)
     
     print(f"Analysis complete! Results saved in: {output_dir}")
 
