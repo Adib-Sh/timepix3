@@ -608,5 +608,6 @@ def main(input_file):
     print(f"Analysis complete! Results saved in: {output_dir}")
 
 if __name__ == "__main__":
-    input_file = 'ToTdata_datadriven_20250608_115316.h5' 
+    input_dir ="/home/adisha/git/libkatherine/build/BeamData 20250608 NanoMAX"
+    input_file = input_dir+"/ToTdata_datadriven_20250608_115316.h5"
     main(input_file)
