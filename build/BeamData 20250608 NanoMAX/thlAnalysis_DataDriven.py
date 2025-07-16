@@ -13,8 +13,8 @@ import os
 from PIL import Image
 import io
 
-pwd = "/home/adisha/git/libkatherine/build/BeamData 20250608 NanoMAX/"
-filename = pwd + "thlscan_datadriven_20250608_115511.h5"  # Insert filename here
+
+filename = "thlscan_datadriven_20250608_115511.h5"
 
 sensor_width = 256
 sensor_height = 256
