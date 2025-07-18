@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-Enhanced THL Calibration Data Analysis Script
-Updated for THLrun2_exclude800.c data structure
-"""
 
 import h5py
 import numpy as np
