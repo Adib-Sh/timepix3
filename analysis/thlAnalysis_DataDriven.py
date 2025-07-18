@@ -11,9 +11,11 @@ import io
 pwd = "/home/adisha/git/libkatherine/build/BeamData 20250608 NanoMAX/"
 filename = pwd + "thlscan_datadriven_20250608_115511.h5"  # Insert filename here
 
+x_min, x_max = 110, 130
+y_min, y_max = 120, 140
 sensor_width = 256
 sensor_height = 256
-n_pixels_to_plot = 5
+n_pixels_to_plot = 20
 base_name = os.path.splitext(os.path.basename(filename))[0]
 output_dir = f"{base_name}_analysis"
 plots_dir = os.path.join(output_dir, "individual_plots")
@@ -36,7 +38,7 @@ with h5py.File(filename, 'r') as f:
     # Check what datasets are available
     print("Datasets in file:")
     for key in f.keys():
-        print(f"  {key}: {f[key].shape}")
+        print(f"  Total {key}: {f[key].shape}")
     
     pixel_data = f['/pixel_hits'][:]
     attrs = dict(f.attrs)
@@ -48,6 +50,7 @@ with h5py.File(filename, 'r') as f:
 
 
 unique_thls = np.arange(thl_start, thl_end + thl_step, thl_step)
+unique_thls = unique_thls[::-1]
 print(f"\nTHL levels: {len(unique_thls)} points from {thl_start} to {thl_end} mV")
 
 thl_pixel_data = {}
@@ -58,20 +61,38 @@ for thl in unique_thls:
     hit_map = np.zeros((sensor_height, sensor_width), dtype=np.uint64)
     tot_map = np.zeros((sensor_height, sensor_width), dtype=np.float32)
     count_map = np.zeros((sensor_height, sensor_width), dtype=np.uint32)
-    
+    '''
     for pixel in thl_pixels:
         x, y = pixel['x'], pixel['y']
-        if 0 <= x < sensor_width and 0 <= y < sensor_height:
+        if x_min <= x < x_max and y_min <= y < y_max:
             hit_map[y, x] += 1
             tot_map[y, x] += pixel['tot']
             count_map[y, x] += 1
+    '''
+    x = thl_pixels['x']
+    y = thl_pixels['y']
+    tot = thl_pixels['tot']
+    
+    roi_mask = (x >= x_min) & (x < x_max) & (y >= y_min) & (y < y_max)
+    x_roi = x[roi_mask]
+    y_roi = y[roi_mask]
+    tot_roi = tot[roi_mask]
+    
+    # Initialize maps for ROI only
+    hit_map = np.zeros((sensor_height, sensor_width), dtype=np.uint64)
+    tot_map = np.zeros((sensor_height, sensor_width), dtype=np.float32)
+    count_map = np.zeros((sensor_height, sensor_width), dtype=np.uint32)
+    
+    # Use np.add.at to accumulate values efficiently
+    np.add.at(hit_map, (y_roi, x_roi), 1)
+    np.add.at(tot_map, (y_roi, x_roi), tot_roi)
+    np.add.at(count_map, (y_roi, x_roi), 1)
 
-
-    mean_tot_map = np.divide(tot_map, count_map, where=count_map>0)
+    #mean_tot_map = np.divide(tot_map, count_map, where=count_map>0)
     
     thl_pixel_data[thl] = {
         'hit_map': hit_map,
-        'mean_tot_map': mean_tot_map,
+        #'mean_tot_map': mean_tot_map,
         'total_hits': np.sum(hit_map),
         'active_pixels': np.sum(hit_map > 0),
         'mean_tot': np.mean(pixel_data['tot'][thl_filter]) if np.any(thl_filter) else 0,
@@ -110,7 +131,8 @@ for i, (x, y) in enumerate(active_pixels):
         thresholds.append(thl)
     
     plt.plot(thresholds, hit_counts, 'o-', color=colors[i], 
-            label=f'Pixel ({x}, {y})', linewidth=2, markersize=4)
+            label=f'{n_pixels_to_plot} Most Active Pixels', linewidth=2, markersize=4)
+    plt.gca().invert_xaxis()
 
 plt.xlabel('Threshold (mV)', fontsize=12)
 plt.ylabel('Hit Count', fontsize=12)
@@ -124,7 +146,7 @@ plt.tight_layout()
 threshold_plot_path = os.path.join(output_dir, 'threshold_curves.png')
 plt.savefig(threshold_plot_path, dpi=300, bbox_inches='tight')
 plt.show()
-
+'''
 # Plot 2: Mean TOT vs Threshold
 plt.figure(figsize=(12, 6))
 mean_tots = [thl_pixel_data[thl]['mean_tot'] for thl in sorted(unique_thls)]
@@ -136,11 +158,12 @@ plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, 'mean_tot_vs_threshold.png'), dpi=300)
 plt.show()
-
+'''
 # Plot 3: Active Pixel Count vs Threshold
 plt.figure(figsize=(12, 6))
 active_pixels = [thl_pixel_data[thl]['active_pixels'] for thl in sorted(unique_thls)]
 plt.plot(sorted(unique_thls), active_pixels, 'ro-', markersize=4, linewidth=1.5)
+plt.gca().invert_xaxis()
 plt.xlabel('Threshold (mV)', fontsize=12)
 plt.ylabel('Active Pixel Count', fontsize=12)
 plt.title('Number of Active Pixels vs Threshold', fontsize=14)
@@ -153,6 +176,7 @@ plt.show()
 plt.figure(figsize=(12, 6))
 total_hits = [thl_pixel_data[thl]['total_hits'] for thl in sorted(unique_thls)]
 plt.plot(sorted(unique_thls), total_hits, 'go-', markersize=4, linewidth=1.5)
+plt.gca().invert_xaxis()
 plt.xlabel('Threshold (mV)', fontsize=12)
 plt.ylabel('Total Hits', fontsize=12)
 plt.title('Total Hits vs Threshold', fontsize=14)
@@ -161,7 +185,7 @@ plt.yscale('log')
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, 'total_hits_vs_threshold.png'), dpi=300)
 plt.show()
-
+'''
 # Determine color scale for 2D plots
 all_hits = np.concatenate([data['hit_map'].flatten() for data in thl_pixel_data.values()])
 all_hits = all_hits[all_hits > 0]
@@ -254,5 +278,5 @@ with open(summary_path, 'w') as f:
     max_hits_thl = sorted_thls[max_hits_idx]
     f.write(f"  Peak activity: {max_hits_thl:.1f} mV ({max(total_hits_by_thl):,} hits)\n\n")
       
-    
+'''  
 print("\nAnalysis complete. Results saved in:", output_dir)
