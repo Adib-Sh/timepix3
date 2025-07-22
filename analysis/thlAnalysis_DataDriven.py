@@ -9,7 +9,7 @@ from PIL import Image
 import io
 
 pwd = "/home/adisha/git/libkatherine/build/BeamData 20250608 NanoMAX/"
-filename = pwd + "thlscan_datadriven_20250608_115511.h5"  # Insert filename here
+filename = pwd + "thlscan_datadriven_20250608_115511.h5"
 
 x_min, x_max = 110, 130
 y_min, y_max = 120, 140
@@ -61,34 +61,16 @@ for thl in unique_thls:
     hit_map = np.zeros((sensor_height, sensor_width), dtype=np.uint64)
     tot_map = np.zeros((sensor_height, sensor_width), dtype=np.float32)
     count_map = np.zeros((sensor_height, sensor_width), dtype=np.uint32)
-    '''
+
     for pixel in thl_pixels:
         x, y = pixel['x'], pixel['y']
         if x_min <= x < x_max and y_min <= y < y_max:
             hit_map[y, x] += 1
             tot_map[y, x] += pixel['tot']
             count_map[y, x] += 1
-    '''
-    x = thl_pixels['x']
-    y = thl_pixels['y']
-    tot = thl_pixels['tot']
-    
-    roi_mask = (x >= x_min) & (x < x_max) & (y >= y_min) & (y < y_max)
-    x_roi = x[roi_mask]
-    y_roi = y[roi_mask]
-    tot_roi = tot[roi_mask]
-    
-    # Initialize maps for ROI only
-    hit_map = np.zeros((sensor_height, sensor_width), dtype=np.uint64)
-    tot_map = np.zeros((sensor_height, sensor_width), dtype=np.float32)
-    count_map = np.zeros((sensor_height, sensor_width), dtype=np.uint32)
-    
-    # Use np.add.at to accumulate values efficiently
-    np.add.at(hit_map, (y_roi, x_roi), 1)
-    np.add.at(tot_map, (y_roi, x_roi), tot_roi)
-    np.add.at(count_map, (y_roi, x_roi), 1)
 
-    #mean_tot_map = np.divide(tot_map, count_map, where=count_map>0)
+
+    mean_tot_map = np.divide(tot_map, count_map, where=count_map>0)
     
     thl_pixel_data[thl] = {
         'hit_map': hit_map,
@@ -130,23 +112,28 @@ for i, (x, y) in enumerate(active_pixels):
         hit_counts.append(hit_count)
         thresholds.append(thl)
     
-    plt.plot(thresholds, hit_counts, 'o-', color=colors[i], 
-            label=f'{n_pixels_to_plot} Most Active Pixels', linewidth=2, markersize=4)
-    plt.gca().invert_xaxis()
+    plt.plot(thresholds, hit_counts, 'o-', color=colors[i], linewidth=2, markersize=4)
+
 
 plt.xlabel('Threshold (mV)', fontsize=12)
 plt.ylabel('Hit Count', fontsize=12)
 plt.title('Threshold vs Hit Count for Active Pixels', fontsize=14)
-plt.legend()
+plt.legend(f'{n_pixels_to_plot} Most Active Pixels')
 plt.grid(True, alpha=0.3)
 plt.yscale('log')
+plt.gca().invert_xaxis()
 plt.tight_layout()
 
 # Save threshold curves plot
-threshold_plot_path = os.path.join(output_dir, 'threshold_curves.png')
-plt.savefig(threshold_plot_path, dpi=300, bbox_inches='tight')
+#threshold_plot_path = os.path.join(output_dir, 'threshold_curves.png')
+#plt.savefig(threshold_plot_path, dpi=300, bbox_inches='tight')
 plt.show()
-'''
+
+
+
+
+
+
 # Plot 2: Mean TOT vs Threshold
 plt.figure(figsize=(12, 6))
 mean_tots = [thl_pixel_data[thl]['mean_tot'] for thl in sorted(unique_thls)]
@@ -158,7 +145,7 @@ plt.grid(True, alpha=0.3)
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, 'mean_tot_vs_threshold.png'), dpi=300)
 plt.show()
-'''
+
 # Plot 3: Active Pixel Count vs Threshold
 plt.figure(figsize=(12, 6))
 active_pixels = [thl_pixel_data[thl]['active_pixels'] for thl in sorted(unique_thls)]
@@ -185,7 +172,7 @@ plt.yscale('log')
 plt.tight_layout()
 plt.savefig(os.path.join(output_dir, 'total_hits_vs_threshold.png'), dpi=300)
 plt.show()
-'''
+
 # Determine color scale for 2D plots
 all_hits = np.concatenate([data['hit_map'].flatten() for data in thl_pixel_data.values()])
 all_hits = all_hits[all_hits > 0]
@@ -249,34 +236,3 @@ if frames:  # Only save if we have frames
         loop=0
     )
 
-# Create and save summary report
-summary_path = os.path.join(output_dir, 'analysis_summary.txt')
-with open(summary_path, 'w') as f:
-    f.write("THL CALIBRATION ANALYSIS SUMMARY\n")
-    f.write("=" * 50 + "\n")
-    f.write(f"Input file: {filename}\n")
-    f.write(f"Analysis date: {os.path.basename(output_dir)}\n\n")
-    
-    f.write("DATASET INFORMATION:\n")
-    f.write(f"  Pixel hit records: {len(pixel_data)}\n")
-    f.write(f"  Sensor dimensions: {sensor_width} x {sensor_height}\n\n")
-    
-    f.write("THL SCAN PARAMETERS:\n")
-    f.write(f"  THL levels: {len(unique_thls)}\n")
-    f.write(f"  THL range: {min(unique_thls):.1f} - {max(unique_thls):.1f} mV\n")
-    f.write(f"  THL step: {thl_step:.1f} mV\n")
-    f.write(f"  Frames per THL: {frames_per_thl}\n\n")
-    
-    total_hits_by_thl = [thl_pixel_data[thl]['total_hits'] for thl in sorted_thls]
-    active_pixels_by_thl = [thl_pixel_data[thl]['active_pixels'] for thl in sorted_thls]
-    
-    f.write("ACTIVITY STATISTICS:\n")
-    f.write(f"  Total hits range: {min(total_hits_by_thl):,} - {max(total_hits_by_thl):,}\n")
-    f.write(f"  Active pixels range: {min(active_pixels_by_thl):,} - {max(active_pixels_by_thl):,}\n")
-    
-    max_hits_idx = np.argmax(total_hits_by_thl)
-    max_hits_thl = sorted_thls[max_hits_idx]
-    f.write(f"  Peak activity: {max_hits_thl:.1f} mV ({max(total_hits_by_thl):,} hits)\n\n")
-      
-'''  
-print("\nAnalysis complete. Results saved in:", output_dir)
