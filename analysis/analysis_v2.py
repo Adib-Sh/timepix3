@@ -18,8 +18,8 @@ setup_plot_style()
 input_dir ="/home/adisha/git/libkatherine/build/BeamData 20250608 NanoMAX"
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-#energy_keV, upper_lim, lower_lim = "16keV", 18, 0
-#input_file = input_dir+"/ToTdata_datadriven_20250608_104654.h5"
+energy_keV, upper_lim, lower_lim = "16keV", 20, 0
+input_file = input_dir+"/ToTdata_datadriven_20250608_104654.h5"
 
 #energy_keV, upper_lim, lower_lim = "12keV", 16, 0
 #input_file = input_dir+"/ToTdata_datadriven_20250608_115316.h5"
@@ -30,8 +30,8 @@ timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 #energy_keV, upper_lim, lower_lim = "8keV", 12, 0
 #input_file = input_dir+"/ToTdata_datadriven_20250608_122428.h5"
 
-energy_keV, upper_lim, lower_lim = "7keV", 12, 0
-input_file = input_dir+"/ToTdata_datadriven_20250608_125050.h5"
+#energy_keV, upper_lim, lower_lim = "7keV", 12, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250608_125050.h5"
 
 
 
@@ -184,12 +184,12 @@ plt.show()
 #==========================================================================================
 if energy_keV == "16keV":
     # Define window (Only for 16keV)
-    x_start, x_end = 70, 80
-    y_start, y_end = 140, 150
+    x_start, x_end = 70, 75
+    y_start, y_end = 140, 145
 else:
     # Define window
-    x_start, x_end = 110, 120
-    y_start, y_end = 120, 130
+    x_start, x_end = 110, 115
+    y_start, y_end = 120, 125
 
 data_cropped = data[
     (data['x'] >= x_start) & (data['x'] < x_end) &
@@ -317,6 +317,7 @@ column_order = [
     'median', 'median_err',
     'mode', 'mode_err',
     'fwhm', 'fwhm_err',
+    'peak_tot_val',
     'peak_tot_count',
     'peak_tot_fit'
 ]

@@ -419,7 +419,8 @@ def fit_skew_normal(data, bins=18, data_type="All Pixels", legend_loc='upper lef
     # Peaks
     x_peak = x[np.argmax(pdf)]
     peak_count_fit = skewnorm.pdf(x_peak, shape, loc, scale) * len(data) * bin_width
-    peak_tot_val = bin_centres[np.argmax(counts)]
+    peak_tot_index = np.argmax(counts)
+    peak_tot_val = bin_centres[peak_tot_index]
     peak_height_hist = counts_raw.max()
     ax.plot(x_peak, peak_count_fit, 'o', color='seagreen', label=f'Peak ToT (fit) = {x_peak:.4f}')
     ax.plot(peak_tot_val, peak_height_hist, 'ro', label=f'Peak ToT (count) = {peak_tot_val:.4f}')
@@ -444,7 +445,8 @@ def fit_skew_normal(data, bins=18, data_type="All Pixels", legend_loc='upper lef
         "median": median,      "median_err": median_err,
         "mode": mode,          "mode_err": mode_err,
         "fwhm": fwhm,          "fwhm_err": fwhm_err,
-        "peak_tot_count": peak_tot_val, "peak_tot_fit": x_peak
+        "peak_tot_val": peak_tot_val, "peak_tot_count": peak_height_hist,
+        "peak_tot_fit": x_peak
     }
 
 

@@ -5,7 +5,7 @@ import numpy as np
 from scipy import stats
 
 # Read the CSV file into a pandas DataFrame
-df = pd.read_csv('analysis_cut16.csv')
+df = pd.read_csv('analysis.csv')
 
 # Clean up the energy column (handle "7,5keV" format)
 df['energy'] = df['energy'].str.replace(',', '.').str.replace('keV', '').astype(float)
@@ -14,21 +14,6 @@ df['energy'] = df['energy'].str.replace(',', '.').str.replace('keV', '').astype(
 df['data_category'] = df['data_type'].str.extract(r'\((.*?)\)')
 df['data_category'] = df['data_category'].fillna(df['data_type'])
 
-# Set up the plotting style
-
-plt.style.use('default')
-sns.set(
-    style="white",         # clean look with visible axis ticks
-    context="talk",      # large fonts and lines
-    palette="deep"        # softer color tones
-)
-plt.figure(figsize=(20, 14))  # Increased figure size for better visibility
-
-# Add main title for the whole figure
-plt.suptitle("Energy Dependence of Pixel Response Characteristics", 
-             fontsize=20, fontweight='bold', y=1.0)
-
-# Function to add linear fit to a plot
 def add_linear_fit(ax, x, y, color, label):
     slope, intercept, r_value, p_value, std_err = stats.linregress(x, y)
     line = slope * x + intercept
@@ -40,6 +25,20 @@ def plot_with_errors(ax, x, y, errors, category, color):
     ax.errorbar(x, y, yerr=errors, fmt='o', color=color, 
                 capsize=5, capthick=2, elinewidth=2, 
                 label=f'{category} ± error')
+
+# Set up the plotting style
+
+plt.style.use('default')
+sns.set(
+    style="white",
+    context="talk",
+    palette="deep"
+)
+plt.figure(figsize=(20, 14))
+
+plt.suptitle("Energy Dependence of Pixel Response Characteristics", 
+             fontsize=20, fontweight='bold', y=1.0)
+
 
 # Plot 1: Mean values by energy for each data category
 plt.subplot(2, 2, 1)
@@ -106,8 +105,8 @@ ax6 = plt.gca()
 for category in df['data_category'].unique():
     subset = df[df['data_category'] == category]
     color = sns.color_palette()[list(df['data_category'].unique()).index(category)]
-    plot_with_errors(ax6, subset['energy'], subset['peak_tot_count'], 0, category, color)
-    add_linear_fit(ax6, subset['energy'], subset['peak_tot_count'], color, category)
+    plot_with_errors(ax6, subset['energy'], subset['peak_tot_val'], 0, category, color)
+    add_linear_fit(ax6, subset['energy'], subset['peak_tot_val'], color, category)
 plt.title('ToT Value at Peak (Max Count) by Energy Level')
 plt.xlabel('Energy (keV)')
 plt.ylabel('ToT Value at Peak')
@@ -130,7 +129,7 @@ ax6.legend(fontsize=10)
 plt.tight_layout()
 fig = plt.gcf()
 
-fig.savefig('Calibration_test_with_errors_cut16_4plots.png', dpi=300)
+fig.savefig('Calibration_test_with_errors_4plots.png', dpi=300)
 
 plt.show()
 
@@ -147,7 +146,7 @@ ax7.tick_params(labelsize=14)
 ax7.grid(True)
 ax7.legend(fontsize=12)
 plt.tight_layout()
-fig.savefig("Mode_vs_Energy_presentation_cut16.png", dpi=300, bbox_inches='tight')
+fig.savefig("Mode_vs_Energy_presentation.png", dpi=300, bbox_inches='tight')
 plt.show()
 
 
@@ -158,7 +157,7 @@ summary_table = summary_table[[
     'median', 'median_err',
     'mode', 'mode_err',
     'fwhm', 'fwhm_err',
-    'peak_tot_count',
+    'peak_tot_val',
     'peak_tot_fit'
 ]].round(3)
 
