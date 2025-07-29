@@ -63,7 +63,10 @@ install(TARGETS katherine LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES ${KATHERINE_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/katherine)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/katherine.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
 
-# Build examples if enabled
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif(BUILD_EXAMPLES)
+# Add the Erun3 executable
+add_executable(Erun3 "aquisition/Erun3.c")
+target_link_libraries(Erun3 katherine)
+
+# Add the Erun3 executable
+add_executable(Erun3cla "aquisition/Erun3cla.c")
+target_link_libraries(Erun3cla katherine)
