@@ -64,6 +64,6 @@ install(FILES ${KATHERINE_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/kathe
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/katherine.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
 
 # Build examples if enabled
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif(BUILD_EXAMPLES)
+#if(BUILD_EXAMPLES)
+#    add_subdirectory(examples)
+#endif(BUILD_EXAMPLES)
