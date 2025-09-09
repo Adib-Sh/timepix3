@@ -1,11 +1,5 @@
-add_executable(Erun Erun.c)
-target_link_libraries(Erun PRIVATE katherine)
+add_executable(daq_control_datadriven daq_control_datadriven.c)
+target_link_libraries(daq_control_datadriven PRIVATE katherine)
 
-add_executable(Erun2 Erun2.c)
-target_link_libraries(Erun2 PRIVATE katherine)
-
-add_executable(Erun3 Erun3.c)
-target_link_libraries(Erun3 PRIVATE katherine)
-
-add_executable(Erun_frame Erun_frame.c)
-target_link_libraries(Erun_frame PRIVATE katherine)
+add_executable(daq_control_frame daq_control_frame.c)
+target_link_libraries(daq_control_frame PRIVATE katherine)
