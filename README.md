@@ -8,7 +8,7 @@ A comprehensive data acquisition control system for Timepix3 detectors using the
 timepix3-daq/
 ├── README.md                           # This file
 ├── CMakeLists.txt                      # Main CMake configuration
-├── chipconfig_D4-W0005.bmc            # Chip configuration file
+├── chipconfig_D4-W0005.bmc             # Chip configuration file
 ├── build/                              # Build directory (created during build)
 └── c/
     ├── acquisition/
@@ -99,13 +99,13 @@ The `chipconfig_D4-W0005.bmc` file contains pixel-specific configuration setting
 ### Default Configuration Parameters
 ```c
 Bias voltage:       155 V
-Frames:            1
+Frames:             1
 Acquisition time:   1e10 seconds (continuous)
-Polarity:          Holes (1)
+Polarity:           Holes (1)
 Clock frequency:    40 MHz
 Vthreshold fine:    442
 Vthreshold coarse:  7
-Device IP:         192.168.1.218
+Device IP:          <your_device_ip>
 ```
 
 ## Usage
@@ -147,149 +147,6 @@ This mode:
 
 A comprehensive data acquisition control system for Timepix3 detectors using the Katherine library, supporting both data-driven and frame-based acquisition modes with HDF5 data storage.
 
-## Repository Structure
-
-```
-timepix3-daq/
-├── README.md                           # This file
-├── CMakeLists.txt                      # Main CMake configuration
-├── chipconfig_D4-W0005.bmc            # Chip configuration file
-├── build/                              # Build directory (created during build)
-└── c/
-    ├── acquisition/
-    │   ├── daq_control_datadriven.c    # Data-driven acquisition mode
-    │   └── daq_control_frame.c         # Frame-based acquisition mode
-    ├── katherine_headers/              # Katherine library header files
-    │   └── katherine/
-    │       ├── katherine.h
-    │       ├── px.h
-    │       └── [other headers...]
-    └── src/                           # libkatherine source files
-        ├── device.c
-        ├── acquisition.c
-        ├── config.c
-        └── [other source files...]
-```
-
-## Features
-
-- **Dual Acquisition Modes**: Support for both data-driven and frame-based acquisition
-- **HDF5 Data Storage**: Efficient storage of pixel hit data with metadata
-- **Real-time Monitoring**: Temperature, voltage, and communication status monitoring
-- **Configurable Parameters**: Flexible bias voltage, threshold, and timing settings
-- **Error Handling**: Robust connection retry mechanisms and error reporting
-- **Pixel Hit Counting**: Track hit counts per pixel location
-- **Timestamping**: Automatic filename generation with timestamps
-
-## Prerequisites
-
-### System Requirements
-- Linux-based system (Ubuntu 18.04+ recommended)
-- CMake 3.10 or higher
-- GCC compiler with C11 support
-- Network connection to Timepix3 device
-
-### Dependencies
-- **libkatherine**: Timepix3 control library
-- **HDF5**: High-performance data storage library
-- **Standard C libraries**: stdlib, stdio, time, string, unistd
-
-### Installing Dependencies
-
-#### Ubuntu/Debian:
-```bash
-sudo apt update
-sudo apt install cmake gcc build-essential
-sudo apt install libhdf5-dev hdf5-tools
-```
-
-#### CentOS/RHEL:
-```bash
-sudo yum install cmake gcc make
-sudo yum install hdf5-devel hdf5-tools
-```
-
-## Building the Project
-
-### 1. Clone the Repository
-```bash
-git clone <your-repository-url>
-cd timepix3
-```
-
-### 2. Create Build Directory
-```bash
-mkdir build
-cd build
-```
-
-### 3. Configure with CMake
-```bash
-cmake ..
-```
-
-### 4. Compile the Project
-```bash
-make
-```
-
-## Configuration Files
-
-### Chip Configuration File
-The `chipconfig_D4-W0005.bmc` file contains pixel-specific configuration settings:
-- **Location**: Must be in the same directory as the executable (/build) or specify full path
-- **Format**: Binary configuration file specific to your Timepix3 chip
-- **Usage**: Automatically loaded during initialization
-
-### Default Configuration Parameters
-```c
-Bias voltage:       155 V
-Frames:            1
-Acquisition time:   1e10 seconds (continuous)
-Polarity:          Holes (1)
-Clock frequency:    40 MHz
-Vthreshold fine:    442
-Vthreshold coarse:  7
-Device IP:         192.168.1.218
-```
-
-## Usage
-
-### Data-Driven Acquisition Mode
-```bash
-./daq_control_datadriven
-```
-
-This mode:
-- Continuously acquires pixel hits as they occur
-- Stores data in real-time to HDF5 format
-- Provides immediate feedback on hit rates
-- Suitable for low to medium rate applications
-
-### Frame-Based Acquisition Mode
-```bash
-./daq_control_frame
-```
-
-This mode:
-- Acquires data in discrete time frames
-- Better for high-rate applications
-- Provides frame-by-frame statistics
-- More suitable for timing-critical measurements
-
-### Output Files
-- **Format**: HDF5 (.h5)
-- **Naming**: `ToTdata_datadriven_YYYYMMDD_HHMMSS.h5`
-- **Structure**:
-  ```
-  /pixel_hits
-  ├── x (pixel x-coordinate)
-  ├── y (pixel y-coordinate)  
-  ├── toa (time of arrival)
-  ├── ftoa (fine time of arrival)
-  ├── tot (time over threshold)
-  └── hit_count (cumulative hits per pixel)
-  ```
 
 ## Data Structure
 
@@ -305,27 +162,6 @@ typedef struct {
 } PixelHit;
 ```
 
-### Sensor Specifications
-- **Dimensions**: 256 × 256 pixels
-- **Pixel size**: 55 μm × 55 μm
-- **Active area**: 14.08 mm × 14.08 mm
-
-## Network Configuration
-
-### Device Connection
-- **Default IP**: Custom according to your Katherine device
-- **Protocol**: TCP/IP
-- **Port**: Standard Katherine protocol ports
-- **Timeout**: 30 seconds for connection attempts
-- **Retry**: 3 automatic retry attempts
-
-### Network Setup
-Ensure your system can reach the device:
-```bash
-ping <your_ip>
-```
-
-## Troubleshooting
 
 ### Common Issues
 
