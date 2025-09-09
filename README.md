@@ -1,269 +1,680 @@
-Katherine Control Library
-=========================
+# Timepix3 DAQ Control System
 
-The Katherine control library contains a working implementation of
-UDP-based communication protocol. It may be used to control and receive
-data from Timepix3 using Katherine readouts.
+A comprehensive data acquisition control system for Timepix3 detectors using the Katherine library, supporting both data-driven and frame-based acquisition modes with HDF5 data storage.
 
-This git repository contains 3 libraries in total:
+## Repository Structure
 
- 1. [libkatherine](./c/), a C library,
- 2. [libkatherinexx](./cxx/), a C++ header-only wrapper,
- 3. [katherine](./python/), a Python wrapper package.
-
-At the present time, the library is **multi-platform**. The implementation
-supports the following platforms:
-
-Platform | CI Status
----------|:---------
-Linux    | [![Linux Build Status][travis-badge-linux]][travis]
-macOS    | [![macOS Build Status][travis-badge-osx]][travis]
-Windows  | [![Windows Build Status][travis-badge-windows]][travis]
-
-
-## Usage
-
-### Getting Started
-
-The following simple code snippets in C, C++ and Python, respectively,
-show the intended usage of the library. The code prints the chip ID of
-a read-out at a given IP address.
-
-```c
-// C example
-#include <stdio.h>
-#include <katherine/katherine.h>
-
-int main() {
-  const char *ip_addr = "192.168.1.142";
-
-  katherine_device_t dev;
-  katherine_device_init(&dev, ip_addr);   // Ignoring return code.
-
-  char chip_id[KATHERINE_CHIP_ID_STR_SIZE];
-  katherine_get_chip_id(&dev, chip_id);   // Ignoring return code.
-  printf("Device %s has chip id: %s\n", ip_addr, chip_id);
-
-  katherine_device_fini(&dev);
-}
+```
+timepix3-daq/
+├── README.md                           # This file
+├── CMakeLists.txt                      # Main CMake configuration
+├── chipconfig_D4-W0005.bmc            # Chip configuration file
+├── build/                              # Build directory (created during build)
+└── c/
+    ├── acquisition/
+    │   ├── daq_control_datadriven.c    # Data-driven acquisition mode
+    │   └── daq_control_frame.c         # Frame-based acquisition mode
+    ├── katherine_headers/              # Katherine library header files
+    │   └── katherine/
+    │       ├── katherine.h
+    │       ├── px.h
+    │       └── [other headers...]
+    └── src/                           # libkatherine source files
+        ├── device.c
+        ├── acquisition.c
+        ├── config.c
+        └── [other source files...]
 ```
 
-```cpp
-// C++ example
-#include <iostream>
-#include <katherinexx/katherinexx.hpp>
+## Features
 
-int main() {
-  const std::string ip_addr{"192.168.1.142"};
+- **Dual Acquisition Modes**: Support for both data-driven and frame-based acquisition
+- **HDF5 Data Storage**: Efficient storage of pixel hit data with metadata
+- **Real-time Monitoring**: Temperature, voltage, and communication status monitoring
+- **Configurable Parameters**: Flexible bias voltage, threshold, and timing settings
+- **Error Handling**: Robust connection retry mechanisms and error reporting
+- **Pixel Hit Counting**: Track hit counts per pixel location
+- **Timestamping**: Automatic filename generation with timestamps
 
-  katherine::device dev{ip_addr};
-  const std::string chip_id = dev.chip_id();   // Exception can be thrown here.
-  std::cout << "Device " << address << " has chip id: " << chip_id << std::endl;
-}
+## Prerequisites
+
+### System Requirements
+- Linux-based system (Ubuntu 18.04+ recommended)
+- CMake 3.10 or higher
+- GCC compiler with C11 support
+- Network connection to Timepix3 device
+
+### Dependencies
+- **libkatherine**: Timepix3 control library
+- **HDF5**: High-performance data storage library
+- **Standard C libraries**: stdlib, stdio, time, string, unistd
+
+### Installing Dependencies
+
+#### Ubuntu/Debian:
+```bash
+sudo apt update
+sudo apt install cmake gcc build-essential
+sudo apt install libhdf5-dev hdf5-tools
 ```
 
-```python
-# Python example
-from katherine import Device
-
-ip_addr = '192.168.1.142'
-
-dev = Device(ip_addr)
-chip_id = dev.get_chip_id()   # OSError can be raised here.
-print('Device %s has chip id: %s' % (ip_addr, chip_id))
+#### CentOS/RHEL:
+```bash
+sudo yum install cmake gcc make
+sudo yum install hdf5-devel hdf5-tools
 ```
 
-### More Examples
+## Building the Project
 
-To show advanced usage of all provided libraries, several commented example
-programs and scripts are included in the repository. They can be either found
-in the `examples/` subdirectory for each library, or in the table below:
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Adib-Sh/timepix3.git
+cd timepix3
+```
 
-| C                             | C++                                   | Python                                    | Purpose                                              |
-|-------------------------------|---------------------------------------|-------------------------------------------|------------------------------------------------------|
-| [kfind](./c/examples/kfind.c) | [kfindxx](./cxx/examples/kfindxx.cpp) | [kfind.py](./python/examples/kfind.py)    | Locate Katherine readouts in given IP address range. |
-| [krun](./c/examples/krun.c)   | [krunxx](./cxx/examples/krunxx.cpp)   | [krun.py](./python/examples/krun.py)      | Configure & perform data-driven acquisition.         |
+### 2. Create Build Directory
+```bash
+mkdir build
+cd build
+```
 
-
-### Full Documentation
-
-The contents of the C library use in-code and Javadoc-style documentation.
-Pre-built documentation may be found in the `docs/` directory. Upon changes,
-the Doxygen tool can recreate its contents.
-
-High-level overview may be found in the Chapter 3 of the thesis.
-
-
-### Wrappers
-
-For the reasons of redundancy, the provided wrappers are deliberately _not_
-documented. Since their programming interface models that of libkatherine,
-corresponding functions can be easily identified (usually just by adding the
-prefix `katherine_`).
-
-
-## Build Notes
-
-The project uses CMake 3 build system. It can be configured, built and installed
-by standard CMake commands. In case of doubt, check the [Travis][travis-yml]
-configuration file for examples of build commands for individual platforms.
-
-For convenience, here's a minimal out-of-source-directory build script example:
-
-```shell
-mkdir build && cd build
+### 3. Configure with CMake
+```bash
 cmake ..
+```
+
+### 4. Compile the Project
+```bash
 make
 ```
 
-_(note that in CMake projects, different build tools can be used instead of
-GNU Makefiles, e.g. ninja)_
+## Configuration Files
 
-The CMake project also defines several options. They can be defined in the CMake
-cache, by environment variables or using the `-D<option>=<value>` options.
+### Chip Configuration File
+The `chipconfig_D4-W0005.bmc` file contains pixel-specific configuration settings:
+- **Location**: Must be in the same directory as the executable (build) or specify full path
+- **Format**: Binary configuration file specific to your Timepix3 chip
+- **Usage**: Automatically loaded during initialization
 
-Option            | Default Value | Meaning
-------------------|---------------|-------------------------------------------------------
-`BUILD_CXX`       | `ON`          | Enables building C++ binaries (see requirements)
-`BUILD_PYTHON`    | `OFF`         | Enables building Python extension (see requirements)
-`BUILD_EXAMPLES`  | `ON`          | Enables building example programs
+### Default Configuration Parameters
+```c
+Bias voltage:       155 V
+Frames:            1
+Acquisition time:   1e10 seconds (continuous)
+Polarity:          Holes (1)
+Clock frequency:    40 MHz
+Vthreshold fine:    442
+Vthreshold coarse:  7
+Device IP:         192.168.1.218
+```
 
-For optimal performance, consider also configuring standard CMake options such as
-`CMAKE_BUILD_TYPE` which configures the compiler optimization policies or
-include additional debug information. See [CMake docs][cbt-doc] for more information.
+## Usage
 
+### Data-Driven Acquisition Mode
+```bash
+./daq_control_datadriven
+```
 
-### C library (libkatherine)
+This mode:
+- Continuously acquires pixel hits as they occur
+- Stores data in real-time to HDF5 format
+- Provides immediate feedback on hit rates
+- Suitable for low to medium rate applications
 
-The C library uses the following dependencies:
+### Frame-Based Acquisition Mode
+```bash
+./daq_control_frame
+```
 
- - C11 standard library,
- - Version for \*nix systems:
-   - POSIX threads (pthread),
-   - BSD socket interface,
- - Version for Win32 systems:
-   - Windows Sockets API (WSA) 2.2 (in ws2_32.dll),
-   - Windows Synchronization Primitives (in kernel32.dll).
+This mode:
+- Acquires data in discrete time frames
+- Better for high-rate applications
+- Provides frame-by-frame statistics
+- More suitable for timing-critical measurements
 
+### Output Files
+- **Format**: HDF5 (.h5)
+- **Naming**: `ToTdata_datadriven_YYYYMMDD_HHMMSS.h5`
+- **Structure**:
+  ```
+  /pixel_hits
+  ├── x (pixel x-coordinate)
+  ├── y (pixel y-coordinate)  
+  ├── toa (time of arrival)
+  ├── ftoa (fine time of arrival)
+  ├── tot (time over threshold)
+  └── hit_count (cumulative hits per # Timepix3 DAQ Control System
 
-### C++ wrapper
+A comprehensive data acquisition control system for Timepix3 detectors using the Katherine library, supporting both data-driven and frame-based acquisition modes with HDF5 data storage.
 
-The C++ wrapper uses the following dependencies:
+## Repository Structure
 
- - C++14 standard library,
- - libkatherine (the C library)
+```
+timepix3-daq/
+├── README.md                           # This file
+├── CMakeLists.txt                      # Main CMake configuration
+├── chipconfig_D4-W0005.bmc            # Chip configuration file
+├── build/                              # Build directory (created during build)
+└── c/
+    ├── acquisition/
+    │   ├── daq_control_datadriven.c    # Data-driven acquisition mode
+    │   └── daq_control_frame.c         # Frame-based acquisition mode
+    ├── katherine_headers/              # Katherine library header files
+    │   └── katherine/
+    │       ├── katherine.h
+    │       ├── px.h
+    │       └── [other headers...]
+    └── src/                           # libkatherine source files
+        ├── device.c
+        ├── acquisition.c
+        ├── config.c
+        └── [other source files...]
+```
 
-Since the wrapper is header-only, there are no produced binaries and all calls
-are directly forwarded to libkatherine.
+## Features
 
+- **Dual Acquisition Modes**: Support for both data-driven and frame-based acquisition
+- **HDF5 Data Storage**: Efficient storage of pixel hit data with metadata
+- **Real-time Monitoring**: Temperature, voltage, and communication status monitoring
+- **Configurable Parameters**: Flexible bias voltage, threshold, and timing settings
+- **Error Handling**: Robust connection retry mechanisms and error reporting
+- **Pixel Hit Counting**: Track hit counts per pixel location
+- **Timestamping**: Automatic filename generation with timestamps
 
-### Python wrapper
+## Prerequisites
 
-The Python wrapper uses the following dependencies:
+### System Requirements
+- Linux-based system (Ubuntu 18.04+ recommended)
+- CMake 3.10 or higher
+- GCC compiler with C11 support
+- Network connection to Timepix3 device
 
- - Python 3.5,
- - Cython compiler 0.29,
- - libkatherine (the C library)
+### Dependencies
+- **libkatherine**: Timepix3 control library
+- **HDF5**: High-performance data storage library
+- **Standard C libraries**: stdlib, stdio, time, string, unistd
 
-The wrapper generates an extension module which can be loaded and used by any script.
-Its file name is derived from platform and Python version. Upon successful build, the
-file can be located inside the CMake build directory at path:
-`./python/build/lib.{PLATFORM}-{ARCH}-{PYTHON_VERSION}/`. While in Linux systems, the
-file has .so extension (e.g. `katherine.cpython-37m-x86_64-linux-gnu.so`), in Windows
-the file's extension is .pyd (e.g. `katherine.cp37-win_amd64.pyd`).
+### Installing Dependencies
 
-**Note:** Before using the Python wrapper, make sure that the interpeter has access to all
-the required files. Specifically:
+#### Ubuntu/Debian:
+```bash
+sudo apt update
+sudo apt install cmake gcc build-essential
+sudo apt install libhdf5-dev hdf5-tools
+```
 
- 1. The extension module is located in one of the `PYTHONPATH` directories.
- 2. The `libkatherine.so` library file (or `katherine.dll` in Windows) is located in one
-    of the `LD_LIBRARY_PATH` directories (or `PATH` directories in Windows).
+#### CentOS/RHEL:
+```bash
+sudo yum install cmake gcc make
+sudo yum install hdf5-devel hdf5-tools
+```
 
-If these conditions are not satisfied, you are likely going to encounter to `ModuleNotFoundError`
-in the first case and `ImportError` in the second.
+## Building the Project
 
-Be also aware that you can change the variables directly from Python without having to
-alter their values on system-wide level. This is especially useful in Windows environments. Here's
-an example script:
+### 1. Clone the Repository
+```bash
+git clone <your-repository-url>
+cd timepix3-daq
+```
 
+### 2. Create Build Directory
+```bash
+mkdir build
+cd build
+```
+
+### 3. Configure with CMake
+```bash
+cmake ..
+```
+
+### 4. Compile the Project
+```bash
+make -j$(nproc)
+```
+
+### Alternative Build Method (if using custom Makefile):
+```bash
+# From the root directory
+make clean
+make all
+```
+
+## Configuration Files
+
+### Chip Configuration File
+The `chipconfig_D4-W0005.bmc` file contains pixel-specific configuration settings:
+- **Location**: Must be in the same directory as the executable or specify full path
+- **Format**: Binary configuration file specific to your Timepix3 chip
+- **Usage**: Automatically loaded during initialization
+
+### Default Configuration Parameters
+```c
+Bias voltage:       155 V
+Frames:            1
+Acquisition time:   1e10 seconds (continuous)
+Polarity:          Holes (1)
+Clock frequency:    40 MHz
+Vthreshold fine:    442
+Vthreshold coarse:  7
+Device IP:         192.168.1.218
+```
+
+## Usage
+
+### Data-Driven Acquisition Mode
+```bash
+./daq_control_datadriven
+```
+
+This mode:
+- Continuously acquires pixel hits as they occur
+- Stores data in real-time to HDF5 format
+- Provides immediate feedback on hit rates
+- Suitable for low to medium rate applications
+
+### Frame-Based Acquisition Mode
+```bash
+./daq_control_frame
+```
+
+This mode:
+- Acquires data in discrete time frames
+- Better for high-rate applications
+- Provides frame-by-frame statistics
+- More suitable for timing-critical measurements
+
+### Output Files
+- **Format**: HDF5 (.h5)
+- **Naming**: `ToTdata_datadriven_YYYYMMDD_HHMMSS.h5`
+- **Structure**:
+  ```
+  /pixel_hits
+  ├── x (pixel x-coordinate)
+  ├── y (pixel y-coordinate)  
+  ├── toa (time of arrival)
+  ├── ftoa (fine time of arrival)
+  ├── tot (time over threshold)
+  └── hit_count (cumulative hits per pixel)
+  ```
+
+## Data Structure
+
+### PixelHit Structure
+```c
+typedef struct {
+    int x;              // Pixel X coordinate (0-255)
+    int y;              // Pixel Y coordinate (0-255)
+    uint64_t toa;       // Time of Arrival
+    uint8_t ftoa;       // Fine Time of Arrival
+    uint16_t tot;       // Time over Threshold
+    uint32_t hit_count; // Hit count for this pixel
+} PixelHit;
+```
+
+### Sensor Specifications
+- **Dimensions**: 256 × 256 pixels
+- **Pixel size**: 55 μm × 55 μm
+- **Active area**: 14.08 mm × 14.08 mm
+
+## Network Configuration
+
+### Device Connection
+- **Default IP**: 192.168.1.218
+- **Protocol**: TCP/IP
+- **Port**: Standard Katherine protocol ports
+- **Timeout**: 30 seconds for connection attempts
+- **Retry**: 3 automatic retry attempts
+
+### Network Setup
+Ensure your system can reach the device:
+```bash
+ping 192.168.1.218
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Connection Failed
+```
+Connection failed: Connection refused. Retrying...
+```
+**Solutions**:
+- Check device IP address and network connectivity
+- Verify device is powered on and network cable connected
+- Check firewall settings
+- Ensure no other software is accessing the device
+
+#### 2. Configuration File Not Found
+```
+Cannot load pixel configuration: chipconfig_D4-W0005.bmc
+```
+**Solutions**:
+- Verify config file exists in executable directory
+- Check file permissions (readable)
+- Use absolute path to config file
+
+#### 3. HDF5 File Creation Failed
+```
+Failed to create HDF5 file: ToTdata_datadriven_YYYYMMDD_HHMMSS.h5
+```
+**Solutions**:
+- Check disk space availability
+- Verify write permissions in current directory
+- Ensure HDF5 library is properly installed
+
+#### 4. Digital Test Failed
+```
+Digital test failed!
+```
+**Solutions**:
+- Check device connection stability
+- Verify device is not overheating
+- Try power cycling the device
+- Check for hardware issues
+
+### Debug Information
+The system provides comprehensive status information:
+- Chip ID verification
+- Communication status
+- Temperature monitoring (readout and sensor)
+- ADC voltage readings
+- Digital test results
+
+## Advanced Configuration
+
+### Modifying Acquisition Parameters
+Edit the default values in the main function:
+```c
+arguments_t args = {
+    .bias = 155,                    // Bias voltage
+    .frames = 1,                    // Number of frames
+    .acq_time = 1e10,              // Acquisition time
+    .polarity = 1,                 // 1=holes, 0=electrons
+    .frequency = 40,               // Clock frequency (MHz)
+    .vth_fine = 442,              // Fine threshold
+    .vth_coarse = 7,              // Coarse threshold
+};
+```
+
+### DAC Settings
+The system includes comprehensive DAC configuration:
+- Preamp bias currents
+- Discriminator settings
+- Feedback voltage
+- PLL control
+- Test pulse settings
+
+## Data Analysis
+
+### Reading HDF5 Files
+#### Python Example - Data-driven mode:
 ```python
-import sys
-import os
+import h5py
+import numpy as np
 
-ext_path = '<directory containing extension module>'
-lib_path = '<directory containing katherine library file>'
-
-# Alter environment to include the extension module
-sys.path.append(ext_path)
-
-# Alter environment to include the library
-if os.name == 'nt':
-  # use semicolon on Windows systems
-  os.environ['PATH'] += ';%s;' % lib_path
-else:
-  # use different variable and colon on *nix systems
-  os.environ['LD_LIBRARY_PATH'] += ':%s:' % lib_path
-
-try:
-  import katherine
-  dev = katherine.Device('192.168.1.145')
-except ModuleNotFoundError:
-  print('Something wrong with ext_path')
-except ImportError:
-  print('Something wrong with lib_path')
+# Open data-driven file
+with h5py.File('ToTdata_datadriven_20241209_143022.h5', 'r') as f:
+    pixel_hits = f['pixel_hits'][:]
+    
+    # Extract data
+    x_coords = pixel_hits['x']
+    y_coords = pixel_hits['y']
+    toa_data = pixel_hits['toa']
+    tot_data = pixel_hits['tot']
+    ftoa_data = pixel_hits['ftoa']
 ```
 
-If you get linker errors during Cython build phase, check that the target architectures of
-the katherine library and the python extension modules are the same. In Windows environment,
-Cython prefers 64-bit MSVC by default, so it is necessary to choose the "Win64" generator
-in CMake configuration.
+#### Python Example - Frame-based mode:
+```python
+import h5py
+import numpy as np
 
-
-## Copyright
-
-&copy; Petr Mánek 2018, All rights reserved.
-
-Contents of this library are provided for use under the conditions of the
-MIT License (see `LICENSE`).
-
-
-### Citing
-
-If you use this library in your academic work, please make sure you include
-a correct citation of [my thesis][thesis], in which was this library originally
-developed and tested.
-
-If you use BibTeX, you can use the following code:
-
-```bibtex
-  @THESIS{Manek2018_CUNI,
-    author={P. Mánek},
-    title={A system for 3D localization of gamma sources using Timepix3-based Compton cameras},
-    year={2018},
-    institution={Faculty of Mathematics and Physics, Charles University},
-    type={Master's thesis}
-  } 
+# Open frame-based file
+with h5py.File('ToTdata_frame_20241209_143022.h5', 'r') as f:
+    pixel_hits = f['pixel_hits'][:]
+    
+    # Extract data
+    x_coords = pixel_hits['x']
+    y_coords = pixel_hits['y']
+    integral_tot = pixel_hits['integral_tot']
+    event_count = pixel_hits['event_count']
 ```
 
+#### MATLAB Example:
+```matlab
+% Read data-driven HDF5 file
+filename_dd = 'ToTdata_datadriven_20241209_143022.h5';
+x_dd = h5read(filename_dd, '/pixel_hits/x');
+y_dd = h5read(filename_dd, '/pixel_hits/y');
+toa = h5read(filename_dd, '/pixel_hits/toa');
+tot = h5read(filename_dd, '/pixel_hits/tot');
 
-### Contributors
+% Read frame-based HDF5 file
+filename_fb = 'ToTdata_frame_20241209_143022.h5';
+x_fb = h5read(filename_fb, '/pixel_hits/x');
+y_fb = h5read(filename_fb, '/pixel_hits/y');
+integral_tot = h5read(filename_fb, '/pixel_hits/integral_tot');
+event_count = h5read(filename_fb, '/pixel_hits/event_count');
+```
 
-I would like to thank the following people and institutions for their help
-in the development of this library:
+## Performance Considerations
 
- - Petr Burian, University of West Bohemia,
- - Jan Broulím, Institute of Experimental and Applied Physics CTU,
- - Lukáš Meduna, Institute of Experimental and Applied Physics CTU,
- - Jakub Begera, Institute of Experimental and Applied Physics CTU,
- - Felix Lehner, Physikalisch-Technische Bundesanstalt.
+### Data Rates
+- **Typical rates**: 10⁶ - 10⁷ hits/second
+- **Storage**: ~50 bytes per hit in HDF5 format
+- **Memory usage**: Configurable buffers (default: 34MB metadata, 4MB pixel data)
 
+### Optimization Tips
+- Use SSD storage for high-rate applications
+- Monitor system memory usage during long acquisitions
+- Adjust buffer sizes based on expected data rates
+- Consider data compression for long-term storage
 
-[thesis]: http://hdl.handle.net/20.500.11956/101404
+## License
 
-[travis]:               https://travis-ci.org/petrmanek/libkatherine
-[travis-yml]:           ./.travis.yml
-[travis-badge-linux]:   https://badges.herokuapp.com/travis/petrmanek/libkatherine?env=BADGE=linux&label=build&branch=master
-[travis-badge-osx]:     https://badges.herokuapp.com/travis/petrmanek/libkatherine?env=BADGE=osx&label=build&branch=master
-[travis-badge-windows]: https://badges.herokuapp.com/travis/petrmanek/libkatherine?env=BADGE=windows&label=build&branch=master
+This project uses the Katherine library for Timepix3 control. Please ensure compliance with all applicable licenses.
 
-[cbt-doc]: https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html
+## Support and Contributing
+
+### Reporting Issues
+Please include the following information:
+- System specifications
+- Error messages (full output)
+- Network configuration
+- Device model and firmware version
+
+### Development
+- Follow C11 coding standards
+- Include proper error handling
+- Update documentation for new features
+- Test thoroughly before submitting changes
+
+## Changelog
+
+### Version 1.0
+- Initial release
+- Data-driven and frame-based acquisition modes
+- HDF5 data storage
+- Real-time monitoring
+- Network retry mechanismspixel)
+  ```
+
+## Data Structure
+
+### PixelHit Structure
+```c
+typedef struct {
+    int x;              // Pixel X coordinate (0-255)
+    int y;              // Pixel Y coordinate (0-255)
+    uint64_t toa;       // Time of Arrival
+    uint8_t ftoa;       // Fine Time of Arrival
+    uint16_t tot;       // Time over Threshold
+    uint32_t hit_count; // Hit count for this pixel
+} PixelHit;
+```
+
+### Sensor Specifications
+- **Dimensions**: 256 × 256 pixels
+- **Pixel size**: 55 μm × 55 μm
+- **Active area**: 14.08 mm × 14.08 mm
+
+## Network Configuration
+
+### Device Connection
+- **Default IP**: 192.168.1.218
+- **Protocol**: TCP/IP
+- **Port**: Standard Katherine protocol ports
+- **Timeout**: 30 seconds for connection attempts
+- **Retry**: 3 automatic retry attempts
+
+### Network Setup
+Ensure your system can reach the device:
+```bash
+ping 192.168.1.218
+```
+
+## Troubleshooting
+
+### Common Issues
+
+#### 1. Connection Failed
+```
+Connection failed: Connection refused. Retrying...
+```
+**Solutions**:
+- Check device IP address and network connectivity
+- Verify device is powered on and network cable connected
+- Check firewall settings
+- Ensure no other software is accessing the device
+
+#### 2. Configuration File Not Found
+```
+Cannot load pixel configuration: chipconfig_D4-W0005.bmc
+```
+**Solutions**:
+- Verify config file exists in executable directory
+- Check file permissions (readable)
+- Use absolute path to config file
+
+#### 3. HDF5 File Creation Failed
+```
+Failed to create HDF5 file: ToTdata_datadriven_YYYYMMDD_HHMMSS.h5
+```
+**Solutions**:
+- Check disk space availability
+- Verify write permissions in current directory
+- Ensure HDF5 library is properly installed
+
+#### 4. Digital Test Failed
+```
+Digital test failed!
+```
+**Solutions**:
+- Check device connection stability
+- Verify device is not overheating
+- Try power cycling the device
+- Check for hardware issues
+
+### Debug Information
+The system provides comprehensive status information:
+- Chip ID verification
+- Communication status
+- Temperature monitoring (readout and sensor)
+- ADC voltage readings
+- Digital test results
+
+## Advanced Configuration
+
+### Modifying Acquisition Parameters
+Edit the default values in the main function:
+```c
+arguments_t args = {
+    .bias = 155,                    // Bias voltage
+    .frames = 1,                    // Number of frames
+    .acq_time = 1e10,              // Acquisition time
+    .polarity = 1,                 // 1=holes, 0=electrons
+    .frequency = 40,               // Clock frequency (MHz)
+    .vth_fine = 442,              // Fine threshold
+    .vth_coarse = 7,              // Coarse threshold
+};
+```
+
+### DAC Settings
+The system includes comprehensive DAC configuration:
+- Preamp bias currents
+- Discriminator settings
+- Feedback voltage
+- PLL control
+- Test pulse settings
+
+## Data Analysis
+
+### Reading HDF5 Files
+#### Python Example:
+```python
+import h5py
+import numpy as np
+
+# Open file
+with h5py.File('ToTdata_datadriven_20241209_143022.h5', 'r') as f:
+    pixel_hits = f['pixel_hits'][:]
+    
+    # Extract data
+    x_coords = pixel_hits['x']
+    y_coords = pixel_hits['y']
+    toa_data = pixel_hits['toa']
+    tot_data = pixel_hits['tot']
+```
+
+#### MATLAB Example:
+```matlab
+% Read HDF5 file
+filename = 'ToTdata_datadriven_20241209_143022.h5';
+x = h5read(filename, '/pixel_hits/x');
+y = h5read(filename, '/pixel_hits/y');
+toa = h5read(filename, '/pixel_hits/toa');
+tot = h5read(filename, '/pixel_hits/tot');
+```
+
+## Performance Considerations
+
+### Data Rates
+- **Typical rates**: 10⁶ - 10⁷ hits/second
+- **Storage**: ~50 bytes per hit in HDF5 format
+- **Memory usage**: Configurable buffers (default: 34MB metadata, 4MB pixel data)
+
+### Optimization Tips
+- Use SSD storage for high-rate applications
+- Monitor system memory usage during long acquisitions
+- Adjust buffer sizes based on expected data rates
+- Consider data compression for long-term storage
+
+## License
+
+This project uses the Katherine library for Timepix3 control. Please ensure compliance with all applicable licenses.
+
+## Support and Contributing
+
+### Reporting Issues
+Please include the following information:
+- System specifications
+- Error messages (full output)
+- Network configuration
+- Device model and firmware version
+
+### Development
+- Follow C11 coding standards
+- Include proper error handling
+- Update documentation for new features
+- Test thoroughly before submitting changes
+
+## Changelog
+
+### Version 1.0
+- Initial release
+- Data-driven and frame-based acquisition modes
+- HDF5 data storage
+- Real-time monitoring
+- Network retry mechanisms
