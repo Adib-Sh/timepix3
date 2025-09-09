@@ -67,3 +67,4 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/katherine.pc DESTINATION ${CMAKE_INSTA
 #if(BUILD_EXAMPLES)
 #    add_subdirectory(examples)
 #endif(BUILD_EXAMPLES)
+add_subdirectory(acquisition)

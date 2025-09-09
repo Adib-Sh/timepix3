@@ -15,10 +15,12 @@ include(GNUInstallDirs)
 
 add_subdirectory(c)
 
+
+
 if(BUILD_CXX)
     add_subdirectory(cxx)
-endif(BUILD_CXX)
+endif()
 
 if(BUILD_PYTHON)
     add_subdirectory(python)
-endif(BUILD_PYTHON)
+endif()
