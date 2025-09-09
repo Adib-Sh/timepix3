@@ -217,13 +217,13 @@ The system provides comprehensive status information:
 Edit the default values in the main function:
 ```c
 arguments_t args = {
-    .bias = 155,                    // Bias voltage
-    .frames = 1,                    // Number of frames
-    .acq_time = 1e10,              // Acquisition time
-    .polarity = 1,                 // 1=holes, 0=electrons
-    .frequency = 40,               // Clock frequency (MHz)
-    .vth_fine = 442,              // Fine threshold
-    .vth_coarse = 7,              // Coarse threshold
+    .bias = 155,         // Bias voltage
+    .frames = 1,         // Number of frames
+    .acq_time = 1e10,    // Acquisition time
+    .polarity = 1,       // 1=holes, 0=electrons
+    .frequency = 40,     // Clock frequency (MHz)
+    .vth_fine = 442,     // Fine threshold
+    .vth_coarse = 7,     // Coarse threshold
 };
 ```
 
@@ -381,4 +381,4 @@ Please include the following information:
 - HDF5 data storage
 - Real-time monitoring
 - Network retry mechanismspixel)
-  ```
+
