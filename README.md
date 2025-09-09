@@ -214,7 +214,7 @@ sudo yum install hdf5-devel hdf5-tools
 ### 1. Clone the Repository
 ```bash
 git clone <your-repository-url>
-cd timepix3-daq
+cd timepix3
 ```
 
 ### 2. Create Build Directory
@@ -230,21 +230,14 @@ cmake ..
 
 ### 4. Compile the Project
 ```bash
-make -j$(nproc)
-```
-
-### Alternative Build Method (if using custom Makefile):
-```bash
-# From the root directory
-make clean
-make all
+make
 ```
 
 ## Configuration Files
 
 ### Chip Configuration File
 The `chipconfig_D4-W0005.bmc` file contains pixel-specific configuration settings:
-- **Location**: Must be in the same directory as the executable or specify full path
+- **Location**: Must be in the same directory as the executable (/build) or specify full path
 - **Format**: Binary configuration file specific to your Timepix3 chip
 - **Usage**: Automatically loaded during initialization
 
@@ -320,7 +313,7 @@ typedef struct {
 ## Network Configuration
 
 ### Device Connection
-- **Default IP**: 192.168.1.218
+- **Default IP**: Custom according to your Katherine device
 - **Protocol**: TCP/IP
 - **Port**: Standard Katherine protocol ports
 - **Timeout**: 30 seconds for connection attempts
@@ -329,7 +322,7 @@ typedef struct {
 ### Network Setup
 Ensure your system can reach the device:
 ```bash
-ping 192.168.1.218
+ping <your_ip>
 ```
 
 ## Troubleshooting
@@ -409,72 +402,125 @@ The system includes comprehensive DAC configuration:
 ## Data Analysis
 
 ### Reading HDF5 Files
-#### Python Example - Data-driven mode:
+
+#### Basic Python Example - Data-driven mode:
 ```python
 import h5py
 import numpy as np
+import matplotlib.pyplot as plt
 
-# Open data-driven file
+# Load and analyze data-driven file
 with h5py.File('ToTdata_datadriven_20241209_143022.h5', 'r') as f:
-    pixel_hits = f['pixel_hits'][:]
-    
-    # Extract data
-    x_coords = pixel_hits['x']
-    y_coords = pixel_hits['y']
-    toa_data = pixel_hits['toa']
-    tot_data = pixel_hits['tot']
-    ftoa_data = pixel_hits['ftoa']
+    hits = f['pixel_hits'][:]
+
+# Extract data
+x_coords = hits['x']
+y_coords = hits['y']
+toa_data = hits['toa']
+tot_data = hits['tot']
+
+# Create 256x256 hit count map
+hit_count_map = np.zeros((256, 256), dtype=int)
+np.add.at(hit_count_map, (y_coords, x_coords), 1)
+
+# Basic visualization
+plt.figure(figsize=(12, 5))
+
+# Hit map
+plt.subplot(121)
+plt.imshow(hit_count_map, origin='lower', cmap='inferno')
+plt.title('Pixel Hit Count Map')
+plt.colorbar(label='Hits')
+
+# ToT histogram
+plt.subplot(122)
+plt.hist(tot_data, bins=50, alpha=0.7, color='cyan')
+plt.xlabel('Time-over-Threshold (ToT)')
+plt.ylabel('Count')
+plt.title('ToT Energy Spectrum')
+plt.yscale('log')
+
+plt.tight_layout()
+plt.show()
+
+print(f"Total hits: {len(hits):,}")
+print(f"Active pixels: {np.sum(hit_count_map > 0):,}/65536")
+print(f"Mean ToT: {np.mean(tot_data):.2f}")
 ```
 
-#### Python Example - Frame-based mode:
+#### Basic Python Example - Frame-based mode:
 ```python
 import h5py
 import numpy as np
+import matplotlib.pyplot as plt
 
-# Open frame-based file
+# Load and analyze frame-based file
 with h5py.File('ToTdata_frame_20241209_143022.h5', 'r') as f:
-    pixel_hits = f['pixel_hits'][:]
-    
-    # Extract data
-    x_coords = pixel_hits['x']
-    y_coords = pixel_hits['y']
-    integral_tot = pixel_hits['integral_tot']
-    event_count = pixel_hits['event_count']
+    hits = f['pixel_hits'][:]
+
+# Extract data
+x_coords = hits['x']
+y_coords = hits['y']
+integral_tot = hits['integral_tot']
+event_count = hits['event_count']
+
+# Create 32x32 binned analysis
+hist, xedges, yedges = np.histogram2d(
+    x_coords, y_coords, bins=32, range=[[0, 255], [0, 255]]
+)
+
+# Visualization
+plt.figure(figsize=(12, 5))
+
+# Binned hit map
+plt.subplot(121)
+plt.imshow(hist.T, origin='lower', extent=[0, 255, 0, 255], cmap='inferno')
+plt.title('32×32 Binned Hit Map')
+plt.colorbar(label='Hits')
+
+# Integral ToT distribution
+plt.subplot(122)
+plt.hist(integral_tot, bins=50, alpha=0.7, color='orange')
+plt.xlabel('Integral ToT')
+plt.ylabel('Count')
+plt.title('Integral ToT Distribution')
+
+plt.tight_layout()
+plt.show()
+
+print(f"Total events: {len(hits):,}")
+print(f"Mean integral ToT: {np.mean(integral_tot):.2f}")
 ```
 
-#### MATLAB Example:
-```matlab
-% Read data-driven HDF5 file
-filename_dd = 'ToTdata_datadriven_20241209_143022.h5';
-x_dd = h5read(filename_dd, '/pixel_hits/x');
-y_dd = h5read(filename_dd, '/pixel_hits/y');
-toa = h5read(filename_dd, '/pixel_hits/toa');
-tot = h5read(filename_dd, '/pixel_hits/tot');
+## Copyright Attribution
+© Adib Shaker, MAX IV, Lund University 2025, All rights reserved.
 
-% Read frame-based HDF5 file
-filename_fb = 'ToTdata_frame_20241209_143022.h5';
-x_fb = h5read(filename_fb, '/pixel_hits/x');
-y_fb = h5read(filename_fb, '/pixel_hits/y');
-integral_tot = h5read(filename_fb, '/pixel_hits/integral_tot');
-event_count = h5read(filename_fb, '/pixel_hits/event_count');
+This project is built on the [libkatherine](https://github.com/petrmanek/libkatherine) library developed by **Petr Mánek**. The original library is provided under the MIT License.
+
+### Required Citation
+
+If you use this DAQ control system or the underlying libkatherine library in your academic work, please cite this and the libkatherine:
+
+```bibtex
+  @THESIS{Manek2018_CUNI,
+    author={P. Mánek},
+    title={A system for 3D localization of gamma sources using Timepix3-based Compton cameras},
+    year={2018},
+    institution={Faculty of Mathematics and Physics, Charles University},
+    type={Master's thesis}
+  } 
 ```
 
-## Performance Considerations
+### License
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 
-### Data Rates
-- **Typical rates**: 10⁶ - 10⁷ hits/second
-- **Storage**: ~50 bytes per hit in HDF5 format
-- **Memory usage**: Configurable buffers (default: 34MB metadata, 4MB pixel data)
 
-### Optimization Tips
-- Use SSD storage for high-rate applications
-- Monitor system memory usage during long acquisitions
-- Adjust buffer sizes based on expected data rates
-- Consider data compression for long-term storage
+### Acknowledgments
 
-## License
+- [**Petr Mánek**](https://github.com/petrmanek/libkatherine/tree/master?tab=readme-ov-file)
+- [**CERN and the Medipix Collaboration**](https://kt.cern/technologies/timepix3)
+- [**Katherine Readout System**](https://iopscience.iop.org/article/10.1088/1748-0221/20/06/C06077)
 
-This project uses the Katherine library for Timepix3 control. Please ensure compliance with all applicable licenses.
 
 ## Support and Contributing
 
@@ -483,7 +529,7 @@ Please include the following information:
 - System specifications
 - Error messages (full output)
 - Network configuration
-- Device model and firmware version
+- Sensor and Chip ID
 
 ### Development
 - Follow C11 coding standards
@@ -500,181 +546,3 @@ Please include the following information:
 - Real-time monitoring
 - Network retry mechanismspixel)
   ```
-
-## Data Structure
-
-### PixelHit Structure
-```c
-typedef struct {
-    int x;              // Pixel X coordinate (0-255)
-    int y;              // Pixel Y coordinate (0-255)
-    uint64_t toa;       // Time of Arrival
-    uint8_t ftoa;       // Fine Time of Arrival
-    uint16_t tot;       // Time over Threshold
-    uint32_t hit_count; // Hit count for this pixel
-} PixelHit;
-```
-
-### Sensor Specifications
-- **Dimensions**: 256 × 256 pixels
-- **Pixel size**: 55 μm × 55 μm
-- **Active area**: 14.08 mm × 14.08 mm
-
-## Network Configuration
-
-### Device Connection
-- **Default IP**: 192.168.1.218
-- **Protocol**: TCP/IP
-- **Port**: Standard Katherine protocol ports
-- **Timeout**: 30 seconds for connection attempts
-- **Retry**: 3 automatic retry attempts
-
-### Network Setup
-Ensure your system can reach the device:
-```bash
-ping 192.168.1.218
-```
-
-## Troubleshooting
-
-### Common Issues
-
-#### 1. Connection Failed
-```
-Connection failed: Connection refused. Retrying...
-```
-**Solutions**:
-- Check device IP address and network connectivity
-- Verify device is powered on and network cable connected
-- Check firewall settings
-- Ensure no other software is accessing the device
-
-#### 2. Configuration File Not Found
-```
-Cannot load pixel configuration: chipconfig_D4-W0005.bmc
-```
-**Solutions**:
-- Verify config file exists in executable directory
-- Check file permissions (readable)
-- Use absolute path to config file
-
-#### 3. HDF5 File Creation Failed
-```
-Failed to create HDF5 file: ToTdata_datadriven_YYYYMMDD_HHMMSS.h5
-```
-**Solutions**:
-- Check disk space availability
-- Verify write permissions in current directory
-- Ensure HDF5 library is properly installed
-
-#### 4. Digital Test Failed
-```
-Digital test failed!
-```
-**Solutions**:
-- Check device connection stability
-- Verify device is not overheating
-- Try power cycling the device
-- Check for hardware issues
-
-### Debug Information
-The system provides comprehensive status information:
-- Chip ID verification
-- Communication status
-- Temperature monitoring (readout and sensor)
-- ADC voltage readings
-- Digital test results
-
-## Advanced Configuration
-
-### Modifying Acquisition Parameters
-Edit the default values in the main function:
-```c
-arguments_t args = {
-    .bias = 155,                    // Bias voltage
-    .frames = 1,                    // Number of frames
-    .acq_time = 1e10,              // Acquisition time
-    .polarity = 1,                 // 1=holes, 0=electrons
-    .frequency = 40,               // Clock frequency (MHz)
-    .vth_fine = 442,              // Fine threshold
-    .vth_coarse = 7,              // Coarse threshold
-};
-```
-
-### DAC Settings
-The system includes comprehensive DAC configuration:
-- Preamp bias currents
-- Discriminator settings
-- Feedback voltage
-- PLL control
-- Test pulse settings
-
-## Data Analysis
-
-### Reading HDF5 Files
-#### Python Example:
-```python
-import h5py
-import numpy as np
-
-# Open file
-with h5py.File('ToTdata_datadriven_20241209_143022.h5', 'r') as f:
-    pixel_hits = f['pixel_hits'][:]
-    
-    # Extract data
-    x_coords = pixel_hits['x']
-    y_coords = pixel_hits['y']
-    toa_data = pixel_hits['toa']
-    tot_data = pixel_hits['tot']
-```
-
-#### MATLAB Example:
-```matlab
-% Read HDF5 file
-filename = 'ToTdata_datadriven_20241209_143022.h5';
-x = h5read(filename, '/pixel_hits/x');
-y = h5read(filename, '/pixel_hits/y');
-toa = h5read(filename, '/pixel_hits/toa');
-tot = h5read(filename, '/pixel_hits/tot');
-```
-
-## Performance Considerations
-
-### Data Rates
-- **Typical rates**: 10⁶ - 10⁷ hits/second
-- **Storage**: ~50 bytes per hit in HDF5 format
-- **Memory usage**: Configurable buffers (default: 34MB metadata, 4MB pixel data)
-
-### Optimization Tips
-- Use SSD storage for high-rate applications
-- Monitor system memory usage during long acquisitions
-- Adjust buffer sizes based on expected data rates
-- Consider data compression for long-term storage
-
-## License
-
-This project uses the Katherine library for Timepix3 control. Please ensure compliance with all applicable licenses.
-
-## Support and Contributing
-
-### Reporting Issues
-Please include the following information:
-- System specifications
-- Error messages (full output)
-- Network configuration
-- Device model and firmware version
-
-### Development
-- Follow C11 coding standards
-- Include proper error handling
-- Update documentation for new features
-- Test thoroughly before submitting changes
-
-## Changelog
-
-### Version 1.0
-- Initial release
-- Data-driven and frame-based acquisition modes
-- HDF5 data storage
-- Real-time monitoring
-- Network retry mechanisms
