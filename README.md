@@ -1,239 +1,257 @@
-Katherine Control Library
-=========================
+# Katherine THL Calibration Repository
 
-The Katherine control library contains a working implementation of
-UDP-based communication protocol. It may be used to control and receive
-data from Timepix3 using Katherine readouts.
+A comprehensive toolkit for performing Threshold Level (THL) calibration scans on Timepix3 detectors using the Katherine acquisition library.
 
-This git repository contains 3 libraries in total:
+## Repository Structure
 
- 1. [libkatherine](./c/), a C library,
- 2. [libkatherinexx](./cxx/), a C++ header-only wrapper,
- 3. [katherine](./python/), a Python wrapper package.
-
-At the present time, the library is **multi-platform**. The implementation
-supports the following platforms:
-
-Platform | CI Status
----------|:---------
-Linux    | [![Linux Build Status][travis-badge-linux]][travis]
-macOS    | [![macOS Build Status][travis-badge-osx]][travis]
-Windows  | [![Windows Build Status][travis-badge-windows]][travis]
-
-
-## Usage
-
-### Getting Started
-
-The following simple code snippets in C, C++ and Python, respectively,
-show the intended usage of the library. The code prints the chip ID of
-a read-out at a given IP address.
-
-```c
-// C example
-#include <stdio.h>
-#include <katherine/katherine.h>
-
-int main() {
-  const char *ip_addr = "192.168.1.142";
-
-  katherine_device_t dev;
-  katherine_device_init(&dev, ip_addr);   // Ignoring return code.
-
-  char chip_id[KATHERINE_CHIP_ID_STR_SIZE];
-  katherine_get_chip_id(&dev, chip_id);   // Ignoring return code.
-  printf("Device %s has chip id: %s\n", ip_addr, chip_id);
-
-  katherine_device_fini(&dev);
-}
+```
+katherine-thl-calibration/
+├── README.md
+├── CMakeLists.txt
+├── chipconfig_D4-W0005.bmc                       # Chip configuration file
+├── c/
+│   ├── acquisition/
+│   │   ├── daq_thlscan_datadriven.c              # Data-driven mode with full THL scan
+│   │   ├── daq_thlscan_datadriven_exclude800.c   # Data-driven mode excluding 810-845mV
+│   │   └── daq_thlscan_frame_exclude800.c        # Frame mode excluding 810-845mV
+│   ├── katherine_headers/
+│   │   └── [Katherine library headers]
+│   └── src/
+│       └── [libkatherine source files]
 ```
 
-```cpp
-// C++ example
-#include <iostream>
-#include <katherinexx/katherinexx.hpp>
+## Overview
 
-int main() {
-  const std::string ip_addr{"192.168.1.142"};
+This repository contains three different implementations for performing THL (Threshold Level) calibration scans on Timepix3 detectors:
 
-  katherine::device dev{ip_addr};
-  const std::string chip_id = dev.chip_id();   // Exception can be thrown here.
-  std::cout << "Device " << address << " has chip id: " << chip_id << std::endl;
-}
+### 1. Data-Driven Mode (Full Scan) - `daq_thlscan_datadriven.c`
+- **Voltage Range**: 820-1200 mV
+- **Step Size**: 5.0 mV
+- **Acquisition Mode**: `READOUT_DATA_DRIVEN` with `ACQUISITION_MODE_TOA_TOT`
+- **Features**: 
+  - Complete THL scan dataset creation
+  - Writes both individual hits and full pixel matrix to HDF5
+  - Includes comprehensive THL scan results tracking
+
+### 2. Data-Driven Mode (Excluded Range) - `daq_thlscan_datadriven_exclude800.c`
+- **Voltage Range**: 600-950 mV (excludes 810-845 mV)
+- **Step Size**: 2.0 mV
+- **Acquisition Mode**: `READOUT_DATA_DRIVEN` with `ACQUISITION_MODE_TOA_TOT`
+- **Features**: 
+  - Skips problematic voltage range (810-845 mV)
+  - Longer acquisition time (500ms vs 100ms)
+  - Simplified HDF5 output structure
+
+### 3. Frame Mode (Excluded Range) - `daq_thlscan_frame_exclude800.c`
+- **Voltage Range**: 300-1200 mV (excludes 810-845 mV)
+- **Step Size**: 2.0 mV
+- **Acquisition Mode**: `READOUT_SEQUENTIAL` with `ACQUISITION_MODE_EVENT_ITOT`
+- **Features**: 
+  - Uses frame-based readout instead of data-driven
+  - Collects integral TOT, event count, and hit count
+  - Different pixel data structure optimized for frame mode
+
+## Prerequisites
+
+### System Requirements
+- Linux-based system
+- CMake 3.10 or higher
+- GCC compiler with C99 support
+- HDF5 development libraries
+- Katherine library and headers
+
+### Dependencies
+```bash
+# Ubuntu/Debian
+sudo apt-get install cmake build-essential libhdf5-dev
+
+# CentOS/RHEL
+sudo yum install cmake gcc hdf5-devel
 ```
 
-```python
-# Python example
-from katherine import Device
+## Building the Project
 
-ip_addr = '192.168.1.142'
-
-dev = Device(ip_addr)
-chip_id = dev.get_chip_id()   # OSError can be raised here.
-print('Device %s has chip id: %s' % (ip_addr, chip_id))
+### 1. Clone the Repository
+```bash
+git clone https://github.com/Adib-Sh/timepix3.git
+cd timepix3
 ```
 
-### More Examples
+### 2. Create Build Directory
+```bash
+mkdir build
+cd build
+```
 
-To show advanced usage of all provided libraries, several commented example
-programs and scripts are included in the repository. They can be either found
-in the `examples/` subdirectory for each library, or in the table below:
-
-| C                             | C++                                   | Python                                    | Purpose                                              |
-|-------------------------------|---------------------------------------|-------------------------------------------|------------------------------------------------------|
-| [kfind](./c/examples/kfind.c) | [kfindxx](./cxx/examples/kfindxx.cpp) | [kfind.py](./python/examples/kfind.py)    | Locate Katherine readouts in given IP address range. |
-| [krun](./c/examples/krun.c)   | [krunxx](./cxx/examples/krunxx.cpp)   | [krun.py](./python/examples/krun.py)      | Configure & perform data-driven acquisition.         |
-
-
-### Full Documentation
-
-The contents of the C library use in-code and Javadoc-style documentation.
-Pre-built documentation may be found in the `docs/` directory. Upon changes,
-the Doxygen tool can recreate its contents.
-
-High-level overview may be found in the Chapter 3 of the thesis.
-
-
-### Wrappers
-
-For the reasons of redundancy, the provided wrappers are deliberately _not_
-documented. Since their programming interface models that of libkatherine,
-corresponding functions can be easily identified (usually just by adding the
-prefix `katherine_`).
-
-
-## Build Notes
-
-The project uses CMake 3 build system. It can be configured, built and installed
-by standard CMake commands. In case of doubt, check the [Travis][travis-yml]
-configuration file for examples of build commands for individual platforms.
-
-For convenience, here's a minimal out-of-source-directory build script example:
-
-```shell
-mkdir build && cd build
+### 3. Configure with CMake
+```bash
 cmake ..
+```
+
+### 4. Build the Project
+```bash
 make
 ```
 
-_(note that in CMake projects, different build tools can be used instead of
-GNU Makefiles, e.g. ninja)_
+This will generate three executables:
+- `daq_thlscan_datadriven`
+- `daq_thlscan_datadriven_exclude800`
+- `daq_thlscan_frame_exclude800`
 
-The CMake project also defines several options. They can be defined in the CMake
-cache, by environment variables or using the `-D<option>=<value>` options.
+## Configuration Files
 
-Option            | Default Value | Meaning
-------------------|---------------|-------------------------------------------------------
-`BUILD_CXX`       | `ON`          | Enables building C++ binaries (see requirements)
-`BUILD_PYTHON`    | `OFF`         | Enables building Python extension (see requirements)
-`BUILD_EXAMPLES`  | `ON`          | Enables building example programs
+### Pixel Configuration File
+The `chipconfig_D4-W0005.bmc` file contains the pixel configuration for the specific Timepix3 chip. This file must be present in the same directory as the executables or update the path in the source code:
 
-For optimal performance, consider also configuring standard CMake options such as
-`CMAKE_BUILD_TYPE` which configures the compiler optimization policies or
-include additional debug information. See [CMake docs][cbt-doc] for more information.
-
-
-### C library (libkatherine)
-
-The C library uses the following dependencies:
-
- - C11 standard library,
- - Version for \*nix systems:
-   - POSIX threads (pthread),
-   - BSD socket interface,
- - Version for Win32 systems:
-   - Windows Sockets API (WSA) 2.2 (in ws2_32.dll),
-   - Windows Synchronization Primitives (in kernel32.dll).
-
-
-### C++ wrapper
-
-The C++ wrapper uses the following dependencies:
-
- - C++14 standard library,
- - libkatherine (the C library)
-
-Since the wrapper is header-only, there are no produced binaries and all calls
-are directly forwarded to libkatherine.
-
-
-### Python wrapper
-
-The Python wrapper uses the following dependencies:
-
- - Python 3.5,
- - Cython compiler 0.29,
- - libkatherine (the C library)
-
-The wrapper generates an extension module which can be loaded and used by any script.
-Its file name is derived from platform and Python version. Upon successful build, the
-file can be located inside the CMake build directory at path:
-`./python/build/lib.{PLATFORM}-{ARCH}-{PYTHON_VERSION}/`. While in Linux systems, the
-file has .so extension (e.g. `katherine.cpython-37m-x86_64-linux-gnu.so`), in Windows
-the file's extension is .pyd (e.g. `katherine.cp37-win_amd64.pyd`).
-
-**Note:** Before using the Python wrapper, make sure that the interpeter has access to all
-the required files. Specifically:
-
- 1. The extension module is located in one of the `PYTHONPATH` directories.
- 2. The `libkatherine.so` library file (or `katherine.dll` in Windows) is located in one
-    of the `LD_LIBRARY_PATH` directories (or `PATH` directories in Windows).
-
-If these conditions are not satisfied, you are likely going to encounter to `ModuleNotFoundError`
-in the first case and `ImportError` in the second.
-
-Be also aware that you can change the variables directly from Python without having to
-alter their values on system-wide level. This is especially useful in Windows environments. Here's
-an example script:
-
-```python
-import sys
-import os
-
-ext_path = '<directory containing extension module>'
-lib_path = '<directory containing katherine library file>'
-
-# Alter environment to include the extension module
-sys.path.append(ext_path)
-
-# Alter environment to include the library
-if os.name == 'nt':
-  # use semicolon on Windows systems
-  os.environ['PATH'] += ';%s;' % lib_path
-else:
-  # use different variable and colon on *nix systems
-  os.environ['LD_LIBRARY_PATH'] += ':%s:' % lib_path
-
-try:
-  import katherine
-  dev = katherine.Device('192.168.1.145')
-except ModuleNotFoundError:
-  print('Something wrong with ext_path')
-except ImportError:
-  print('Something wrong with lib_path')
+```c
+// Update this line in the configure() function if needed
+int res = katherine_px_config_load_bmc_file(&config->pixel_config, "chipconfig_D4-W0005.bmc");
 ```
 
-If you get linker errors during Cython build phase, check that the target architectures of
-the katherine library and the python extension modules are the same. In Windows environment,
-Cython prefers 64-bit MSVC by default, so it is necessary to choose the "Win64" generator
-in CMake configuration.
+### Device Configuration
+By default, the device IP address is set to `192.168.1.218`. Update the `remote_addr` variable in the source files if your device uses a different address:
 
+```c
+static const char *remote_addr = "192.168.1.218";
+```
 
-## Copyright
+## Running the Programs
 
-&copy; Petr Mánek 2018, All rights reserved.
+### Basic Usage
+```bash
+# Run data-driven mode with full scan
+./daq_thlscan_datadriven
 
-Contents of this library are provided for use under the conditions of the
-MIT License (see `LICENSE`).
+# Run data-driven mode excluding problematic range
+./daq_thlscan_datadriven_exclude800
 
+# Run frame mode excluding problematic range
+./daq_thlscan_frame_exclude800
+```
 
-### Citing
+### Program Flow
+1. **Device Connection**: Attempts connection with 3 retries
+2. **Device Diagnostics**: Checks communication status, chip ID, temperatures
+3. **Digital Test**: Verifies device functionality
+4. **THL Scan**: Performs threshold scan across specified voltage range
+5. **Data Storage**: Saves results to timestamped HDF5 files
 
-If you use this library in your academic work, please make sure you include
-a correct citation of [my thesis][thesis], in which was this library originally
-developed and tested.
+## Output Files
 
-If you use BibTeX, you can use the following code:
+### HDF5 File Structure
+The programs generate HDF5 files with the following naming conventions:
+- Data-driven (full): `thl_calibration_YYYYMMDD_HHMMSS.h5`
+- Data-driven (excluded): `thlscan_datadriven_YYYYMMDD_HHMMSS.h5`
+- Frame mode: `thlscan_frame_YYYYMMDD_HHMMSS.h5`
+
+### Dataset Structure
+
+#### Data-Driven Mode
+```
+/pixel_hits - Individual pixel hits with fields:
+├── x, y          # Pixel coordinates
+├── toa           # Time of arrival
+├── ftoa          # Fine time of arrival
+├── tot           # Time over threshold
+├── hit_count     # Number of hits per pixel
+└── thl           # THL voltage value
+
+/thl_scan - Scan summary with fields:
+├── thl           # THL voltage
+├── frame_idx     # Frame index
+└── hits          # Total hits for this THL value
+```
+
+#### Frame Mode
+```
+/pixel_hits - Frame-based pixel data with fields:
+├── x, y          # Pixel coordinates
+├── integral_tot  # Integrated time over threshold
+├── event_count   # Number of events
+├── hit_count     # Number of hits
+└── thl           # THL voltage value
+```
+
+### File Attributes
+Each HDF5 file includes metadata attributes:
+- `thl_start_mv`: Starting voltage in mV
+- `thl_end_mv`: Ending voltage in mV
+- `thl_step_mv`: Step size in mV
+- `frames_per_thl`: Number of frames per THL point
+
+## THL Voltage Calculation
+
+The programs convert voltage values to DAC settings using:
+- **Coarse DAC**: 80.0 mV steps (0-15 range)
+- **Fine DAC**: 0.5 mV steps (0-511 range)
+- **Total voltage**: `(coarse × 80.0) + (fine × 0.5)` mV
+
+## Troubleshooting
+
+### Common Issues
+
+1. **Device Connection Failed**
+   - Verify network connectivity to device IP
+   - Check if device is powered on
+   - Ensure no firewall blocking communication
+
+2. **Chip Configuration Load Failed**
+   - Verify `chipconfig_D4-W0005.bmc` file exists
+   - Check file permissions
+   - Ensure correct file path in source code
+
+3. **HDF5 File Creation Failed**
+   - Check disk space availability
+   - Verify write permissions in current directory
+   - Ensure HDF5 libraries are properly installed
+
+4. **Digital Test Failed**
+   - Check Timepix3 chip connection
+   - Verify power supply stability
+   - Review communication status output
+
+### Debug Output
+All programs provide verbose output including:
+- Connection attempts and status
+- Device diagnostics (temperatures, communication status)
+- Frame-by-frame acquisition progress
+- Pixel hit statistics
+- Voltage conversion details
+
+## Customization
+
+### Modifying Scan Parameters
+Key parameters can be adjusted in the source code:
+
+```c
+// Voltage range and steps
+#define THL_MIN_MV 600.0    // Starting voltage
+#define THL_MAX_MV 950.0    // Ending voltage  
+#define THL_STEP_MV 2.0     // Step size
+
+// Acquisition settings
+#define FRAMES_PER_THL 1    // Frames per voltage point
+config->acq_time = 5e8;     // Acquisition time (500ms)
+```
+
+### Adding Custom DAC Settings
+The `configure()` function contains all DAC settings that can be customized for your specific detector configuration.
+
+## Performance Considerations
+
+- **Data-driven mode**: More efficient for high hit rate scenarios
+- **Frame mode**: Better for analyzing spatial distributions
+- **Acquisition time**: Balance between statistics and scan duration
+- **Step size**: Smaller steps provide higher resolution but longer scan times
+
+## Copyright Attribution
+© Adib Shaker, MAX IV, Lund University 2025, All rights reserved.
+
+This project is built on the [libkatherine](https://github.com/petrmanek/libkatherine) library developed by **Petr Mánek**. The original library is provided under the MIT License.
+
+### Required Citation
+
+If you use this DAQ control system or the underlying libkatherine library in your academic work, please cite this and the libkatherine:
 
 ```bibtex
   @THESIS{Manek2018_CUNI,
@@ -245,25 +263,28 @@ If you use BibTeX, you can use the following code:
   } 
 ```
 
-
-### Contributors
-
-I would like to thank the following people and institutions for their help
-in the development of this library:
-
- - Petr Burian, University of West Bohemia,
- - Jan Broulím, Institute of Experimental and Applied Physics CTU,
- - Lukáš Meduna, Institute of Experimental and Applied Physics CTU,
- - Jakub Begera, Institute of Experimental and Applied Physics CTU,
- - Felix Lehner, Physikalisch-Technische Bundesanstalt.
+### License
+[![MIT License](https://img.shields.io/badge/License-MIT-green.svg)](https://choosealicense.com/licenses/mit/)
 
 
-[thesis]: http://hdl.handle.net/20.500.11956/101404
+### Acknowledgments
 
-[travis]:               https://travis-ci.org/petrmanek/libkatherine
-[travis-yml]:           ./.travis.yml
-[travis-badge-linux]:   https://badges.herokuapp.com/travis/petrmanek/libkatherine?env=BADGE=linux&label=build&branch=master
-[travis-badge-osx]:     https://badges.herokuapp.com/travis/petrmanek/libkatherine?env=BADGE=osx&label=build&branch=master
-[travis-badge-windows]: https://badges.herokuapp.com/travis/petrmanek/libkatherine?env=BADGE=windows&label=build&branch=master
+- [**Petr Mánek**](https://github.com/petrmanek/libkatherine/tree/master?tab=readme-ov-file)
+- [**CERN and the Medipix Collaboration**](https://kt.cern/technologies/timepix3)
+- [**Katherine Readout System**](https://iopscience.iop.org/article/10.1088/1748-0221/20/06/C06077)
 
-[cbt-doc]: https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html
+
+## Support and Contributing
+
+### Reporting Issues
+Please include the following information:
+- System specifications
+- Error messages (full output)
+- Network configuration
+- Sensor and Chip ID
+
+### Development
+- Follow C11 coding standards
+- Include proper error handling
+- Update documentation for new features
+- Test thoroughly before submitting changes
