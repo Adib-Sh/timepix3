@@ -1,5 +1,8 @@
 add_executable(daq_control_datadriven daq_control_datadriven.c)
 target_link_libraries(daq_control_datadriven PRIVATE katherine)
 
+add_executable(daq_control_datadriven_test daq_control_datadriven_test.c)
+target_link_libraries(daq_control_datadriven_test PRIVATE katherine)
+
 add_executable(daq_control_frame daq_control_frame.c)
 target_link_libraries(daq_control_frame PRIVATE katherine)
