@@ -63,7 +63,4 @@ install(TARGETS katherine LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 install(FILES ${KATHERINE_HEADERS} DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}/katherine)
 install(FILES ${CMAKE_CURRENT_BINARY_DIR}/katherine.pc DESTINATION ${CMAKE_INSTALL_DATAROOTDIR}/pkgconfig)
 
-# Build examples if enabled
-if(BUILD_EXAMPLES)
-    add_subdirectory(examples)
-endif(BUILD_EXAMPLES)
+add_subdirectory(thlscan)
