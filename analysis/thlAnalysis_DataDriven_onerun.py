@@ -157,7 +157,7 @@ for energy_keV, fname in energy_file_map.items():
     active_pixels = active_pixels[:n_pixels_to_plot]
     
     # Plot 1: Threshold vs Hit Count for active pixels
-    plt.figure(figsize=(12, 8))
+    plt.figure(figsize=(10, 6))
     colors = plt.cm.tab10(np.linspace(0, 1, len(active_pixels)))
     
     for i, (x, y) in enumerate(active_pixels):
@@ -186,7 +186,7 @@ for energy_keV, fname in energy_file_map.items():
     
     
     # Plot 3: Active Pixel Count vs Threshold
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(10, 6))
     active_pixel_counts = [thl_pixel_data[thl]['active_pixels'] for thl in sorted(unique_thls)]
     plt.plot(sorted(unique_thls), active_pixel_counts, 'ro-', markersize=4, linewidth=1.5)
     plt.gca().invert_xaxis()
@@ -199,7 +199,7 @@ for energy_keV, fname in energy_file_map.items():
     plt.show()
     
     # Plot 4: Total Hits vs Threshold
-    plt.figure(figsize=(12, 6))
+    plt.figure(figsize=(10, 6))
     total_hits = [thl_pixel_data[thl]['total_hits'] for thl in sorted(unique_thls)]
     plt.plot(sorted(unique_thls), total_hits, 'go-', markersize=4, linewidth=1.5)
     plt.gca().invert_xaxis()
@@ -267,7 +267,7 @@ for energy_keV, fname in energy_file_map.items():
     plt.yscale('log')
     plt.xlabel('Threshold (mV)')
     plt.ylabel('Total Hits')
-    plt.title(f'Improved S-curve Fit to Total Hits at {energy_keV}')
+    plt.title(f'S-curve Fit to Total Hits at {energy_keV}')
     plt.grid(True, alpha=0.3)
     plt.legend()
     plt.tight_layout()
@@ -335,7 +335,7 @@ combined.to_csv(csv_filename, index=False)
 print(f"[INFO] CSV written to {csv_filename}")
 
 
-plt.figure(figsize=(12, 6))
+plt.figure(figsize=(10, 6))
 
 # Prepare consistent colors
 energies = sorted(set(f['energy'] for f in fit_results), key=lambda e: int(e.replace('keV', '')))
@@ -394,7 +394,7 @@ a_err, b_err = np.sqrt(np.diag(pcov))
 x_fit = np.linspace(energies_keV.min(), energies_keV.max(), 200)
 y_fit = linear(x_fit, a, b)
 
-plt.figure(figsize=(8, 5))
+plt.figure(figsize=(10, 6))
 plt.errorbar(energies_keV, x0_values, yerr=x0_errors, color="steelblue", fmt='o', capsize=5, label='x0 data')
 plt.plot(x_fit, y_fit, 'r--', color="darkorange", label=f'Fit: x0 = {a:.3f}·E + {b:.3f}\n±({a_err:.3f}, {b_err:.3f})')
 
