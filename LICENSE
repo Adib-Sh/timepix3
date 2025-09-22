@@ -1,4 +1,6 @@
-Copyright (c) 2018 Petr Mánek
+MIT License
+
+Copyright (c) 2025 Adib Shaker, MAX IV, Lund University
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -17,3 +19,41 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
+
+-------------------------------------------------------------------------------
+
+THIRD-PARTY ACKNOWLEDGMENTS
+
+This project incorporates and builds upon the libkatherine library:
+
+libkatherine
+- Author: Petr Manek
+- License: MIT License
+- Repository: https://github.com/petrmanek/libkatherine
+- Copyright: Copyright (c) 2018 Petr Manek
+
+The original libkatherine library is also licensed under the MIT License, which
+permits the use, modification, and distribution as incorporated in this project.
+
+-------------------------------------------------------------------------------
+
+CITATION REQUIREMENTS
+
+If you use this software or the underlying libkatherine library in academic work,
+please cite the original libkatherine thesis:
+
+@THESIS{Manek2018_CUNI,
+  author={P. Manek},
+  title={A system for 3D localization of gamma sources using Timepix3-based Compton cameras},
+  year={2018},
+  institution={Faculty of Mathematics and Physics, Charles University},
+  type={Master's thesis}
+}
+
+-------------------------------------------------------------------------------
+
+ADDITIONAL ACKNOWLEDGMENTS
+
+- CERN and the Medipix Collaboration for the Timepix3 technology
+- Katherine Readout System developers and maintainers
+- MAX IV Laboratory and Lund University for supporting this development
