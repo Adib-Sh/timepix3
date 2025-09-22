@@ -8,9 +8,9 @@
 #include <argp.h>
 
 // CLA structs and parsing
-const char *argp_program_version = "Erun3 1.0";
+const char *argp_program_version = "DAQ_Control 1.0";
 const char *argp_program_bug_address = "<ad6224sh@lu.se>";
-static char doc[] = "Erun3 — Timepix3 Acquisition Tool for Katherine with HDF5 functionally enabled";
+static char doc[] = "DAQ_Control — Timepix3 Acquisition Tool for Katherine with HDF5 functionally enabled";
 static char args_doc[] = "[OPTIONS]";
 
 /* Command line options */
@@ -599,7 +599,7 @@ void run_acquisition(katherine_device_t *device, const katherine_config_t *confi
     katherine_acquisition_t acq;
     int res = katherine_acquisition_init(&acq, device, NULL, 
                                      KATHERINE_MD_SIZE * 34952533, 
-                                     sizeof(px_t) * 65536, 500, 30000);
+                                     sizeof(px_t) * 65536, 5000, 60000);
     if (res != 0) {
         printf("Cannot initialize acquisition.\n");
         return;

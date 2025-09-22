@@ -1,2 +1,5 @@
-add_executable(daq_control_datadriven_cla.c daq_control_datadriven_cla.c)
-target_link_libraries(daq_control_datadriven_cla.c katherine)
+add_executable(daq_control_datadriven_cla daq_control_datadriven_cla.c)
+target_link_libraries(daq_control_datadriven_cla katherine)
+
+add_executable(daq_control_cla daq_control_cla.c)
+target_link_libraries(daq_control_cla katherine)
