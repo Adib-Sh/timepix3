@@ -1,6 +1,2 @@
-
-add_executable(Erun3 Erun3.c)
-target_link_libraries(Erun3 katherine)
-
-add_executable(Erun3cla Erun3cla.c)
-target_link_libraries(Erun3cla katherine)
+add_executable(daq_control_datadriven_cla.c daq_control_datadriven_cla.c)
+target_link_libraries(daq_control_datadriven_cla.c katherine)

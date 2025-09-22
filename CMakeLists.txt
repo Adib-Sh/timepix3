@@ -3,7 +3,7 @@ project(katherine VERSION 0.1 LANGUAGES C CXX)
 
 option(BUILD_CXX        "build C++ binaries"        OFF)
 option(BUILD_PYTHON     "build Python 3 bindings"   OFF)
-option(BUILD_EXAMPLES   "build example programs"    ON)
+option(BUILD_EXAMPLES   "build example programs"    OFF)
 
 set(CMAKE_C_STANDARD    17)
 set(CMAKE_CXX_STANDARD  17)
