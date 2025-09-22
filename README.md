@@ -5,7 +5,7 @@ A comprehensive data acquisition control system for Timepix3 detectors using the
 ## Repository Structure
 
 ```
-timepix3-daq/
+timepix3/
 ├── README.md                           # This file
 ├── CMakeLists.txt                      # Main CMake configuration
 ├── chipconfig_D4-W0005.bmc             # Chip configuration file
@@ -14,7 +14,7 @@ timepix3-daq/
     ├── acquisition/
     │   ├── daq_control_datadriven.c    # Data-driven acquisition mode
     │   └── daq_control_frame.c         # Frame-based acquisition mode
-    ├── katherine_headers/              # Katherine library header files
+    ├── include/                        # Katherine library header files
     │   └── katherine/
     │       ├── katherine.h
     │       ├── px.h
