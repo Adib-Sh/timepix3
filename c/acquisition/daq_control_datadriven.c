@@ -378,7 +378,7 @@ void run_acquisition(katherine_device_t *device, const katherine_config_t *confi
     katherine_acquisition_t acq;
     int res = katherine_acquisition_init(&acq, device, NULL, 
                                          KATHERINE_MD_SIZE * 34952533, 
-                                         sizeof(px_t) * 65536, 500, 30000);
+                                         sizeof(px_t) * 65536, 2000, 60000);
     if (res != 0) {
         printf("Cannot initialize acquisition.\n");
         return;
