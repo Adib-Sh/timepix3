@@ -53,7 +53,7 @@ struct arguments {
 #define DEFAULT_FRAMES 1
 #define DEFAULT_CONFIG "chipconfig_D4-W0005.bmc"
 #define DEFAULT_ADDRESS "192.168.1.218"
-#define DEFAULT_ACQTIME 1e9
+#define DEFAULT_ACQTIME 1e10
 #define DEFAULT_POLARITY 1
 #define DEFAULT_FREQUENCY 40
 #define DEFAULT_VTH_FINE 424
