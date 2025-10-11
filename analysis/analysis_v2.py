@@ -15,11 +15,11 @@ setup_plot_style()
    
 # Import Data
 #==========================================================================================
-input_dir ="/home/adisha/git/libkatherine/build/BeamData 20250608 NanoMAX"
+input_dir ="/home/adisha/git/libkatherine/build/"
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 energy_keV, upper_lim, lower_lim = "16keV", 20, 0
-input_file = input_dir+"/ToTdata_datadriven_20250608_104654.h5"
+input_file = input_dir+"/ToTdata_datadriven_20251011_112719.h5"
 
 #energy_keV, upper_lim, lower_lim = "12keV", 16, 0
 #input_file = input_dir+"/ToTdata_datadriven_20250608_115316.h5"
@@ -178,7 +178,7 @@ plt.show()
 
 
 
-
+'''
 
 # Cropped Window
 #==========================================================================================
@@ -319,7 +319,7 @@ column_order = [
     'fwhm', 'fwhm_err',
     'peak_tot_val',
     'peak_tot_count',
-    'peak_tot_fit'
+    'peak_tot_fit'ToTdata_datadriven_20250608_104654.h5
 ]
 
 # Fill in missing columns just in case
@@ -343,3 +343,4 @@ else:
 # Write back to file
 combined.to_csv(csv_filename, index=False)
 print(f"[INFO] Analysis data written to {csv_filename}")
+'''
