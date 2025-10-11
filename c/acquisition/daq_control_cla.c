@@ -339,6 +339,8 @@ void initialize_h5_file(const struct arguments *args) {
     
     printf("Initialized HDF5 file: %s\n", filename);
 }
+// Add a global counter for sequential hit numbering
+static uint64_t global_hit_counter = 0;
 
 void write_pixel_hits_datadriven(const katherine_px_f_toa_tot_t *dpx, size_t count) {
     if (h5_manager.pixel_dataset < 0) return;
@@ -359,13 +361,22 @@ void write_pixel_hits_datadriven(const katherine_px_f_toa_tot_t *dpx, size_t cou
         // Increment the hit count for this pixel location
         pixel_counts[y][x]++;
         
+        // Increment global hit counter
+        global_hit_counter++;
+        n_hits++;
+        
         // Populate the hit data structure
         pixel_hits[i].x = x;
         pixel_hits[i].y = y;
         pixel_hits[i].toa = dpx[i].toa;
         pixel_hits[i].ftoa = dpx[i].ftoa;
         pixel_hits[i].tot = dpx[i].tot;
-        pixel_hits[i].hit_count = pixel_counts[y][x];
+        
+        // OPTION 1: Use global sequential hit number
+        pixel_hits[i].hit_count = global_hit_counter;
+        
+        // OPTION 2: Use per-pixel hit count (uncomment to use instead)
+        // pixel_hits[i].hit_count = pixel_counts[y][x];
     }
 
     // Get current dataset dims
@@ -391,6 +402,15 @@ void write_pixel_hits_datadriven(const katherine_px_f_toa_tot_t *dpx, size_t cou
     H5Sclose(memspace);
     H5Sclose(filespace);
 }
+
+// Add reset function for new acquisitions
+void reset_pixel_counts() {
+    memset(pixel_counts, 0, sizeof(pixel_counts));
+    n_hits = 0;
+    global_hit_counter = 0;  // Add this line
+}
+
+
 
 void write_pixel_hits_frame(const struct katherine_px_f_event_itot *dpx, size_t count) {
     if (h5_manager.pixel_dataset < 0) return;
@@ -663,9 +683,8 @@ void adc_voltage(katherine_device_t *device) {
 
 void frame_started(void *user_ctx, int frame_idx) {
     n_hits = 0;
-
+    global_hit_counter = 0;
     printf("Started frame %d.\n", frame_idx);
-
 }
 
 katherine_frame_info_t last_frame_info = {0};
@@ -725,11 +744,6 @@ void pixels_received(void *user_ctx, const void *px, size_t count) {
                dpx, count * sizeof(struct katherine_px_f_event_itot));
         frame_pixel_count += count;
     }
-}
-
-void reset_pixel_counts() {
-    memset(pixel_counts, 0, sizeof(pixel_counts));
-    n_hits = 0;
 }
 
 void run_acquisition(katherine_device_t *device, const katherine_config_t *config, const struct arguments *args) {
