@@ -13,13 +13,13 @@ setup_plot_style()
   
     
    
-# Import Data
+# Import Data NanoMAX
 #==========================================================================================
-input_dir ="/home/adisha/git/libkatherine/build/"
+input_dir = "/home/adisha/git/libkatherine/build/BeamData 20250608 NanoMAX"
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 energy_keV, upper_lim, lower_lim = "16keV", 20, 0
-input_file = input_dir+"/ToTdata_datadriven_20251011_112719.h5"
+input_file = input_dir + "/ToTdata_datadriven_20250608_104654.h5"
 
 #energy_keV, upper_lim, lower_lim = "12keV", 16, 0
 #input_file = input_dir+"/ToTdata_datadriven_20250608_115316.h5"
@@ -52,6 +52,50 @@ input_file = input_dir+"/ToTdata_datadriven_20251011_112719.h5"
 #energy_keV = "6keV_Flux32X"
 #input_file = input_dir+"/ToTdata_datadriven_20250608_131937.h5"
 
+
+# Import Data FemtoMAX
+#==========================================================================================
+input_dir ="/home/adisha/git/libkatherine/build/BeamData 20250908 FemtoMAX"
+timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+
+
+#energy_keV, upper_lim, lower_lim = "17keV", 30, 3
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165800.h5"
+
+#energy_keV, upper_lim, lower_lim = "16keV", 30, 5
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165709.h5"
+
+#energy_keV, upper_lim, lower_lim = "15keV", 30, 5
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165631.h5"
+
+#energy_keV, upper_lim, lower_lim = "14keV", 30, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165543.h5"
+
+#energy_keV, upper_lim, lower_lim = "13keV", 30, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165500.h5"
+
+#energy_keV, upper_lim, lower_lim = "12keV", 30, 2
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165410.h5"
+
+#energy_keV, upper_lim, lower_lim = "11keV" , 30, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165305.h5"
+
+#energy_keV, upper_lim, lower_lim = "10keV" , 30, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165219.h5"
+
+#energy_keV, upper_lim, lower_lim = "9keV" , 30, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165145.h5"
+
+#energy_keV, upper_lim, lower_lim = "8keV", 30, 2
+#input_file = input_dir+"/ToTdata_datadriven_20250908_165057.h5"
+
+#energy_keV, upper_lim, lower_lim = "7keV", 30, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250908_164918.h5"
+
+#energy_keV, upper_lim, lower_lim = "6eV", 20, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250908_164723.h5"
+
+
 with h5py.File(input_file, 'r') as f:
     data = f['/pixel_hits'][:]
     data = pd.DataFrame(data)
@@ -66,7 +110,6 @@ output_dir = f"analysis_{base_name}"
 if not os.path.exists(output_dir):
     os.makedirs(output_dir)
     print(f"[INFO] Created output directory: {output_dir}")
-    
     
     
     
@@ -114,7 +157,6 @@ mean_tot_bin = np.divide(tot_hist_bin, counts_bin, out=np.zeros_like(tot_hist_bi
 
 
 
-
 # Hit Count Per-Pixel Plot
 #==========================================================================================
 norm = LogNorm(vmin=1, vmax=np.max(clean_hit_counts[clean_hit_counts > 0]) if np.any(clean_hit_counts > 0) else 1)
@@ -128,7 +170,6 @@ ax2 = fig1.add_subplot(122)
 plot_pixel_2d(ax2, clean_hit_counts, "Sensor 2D Plot",  norm=norm)
 plt.savefig(os.path.join(output_dir, 'Sensor Per-Pixel Hit Count'), dpi=150, bbox_inches='tight')
 plt.show()
-
 
 
 
@@ -150,7 +191,6 @@ ax2 = fig2.add_subplot(122)
 plot_pixel_2d(ax2, hist, "Sensor 2D Plot", binned = True, norm=norm)
 plt.savefig(os.path.join(output_dir, 'Sensor Per-Pixel Hit Count'), dpi=150, bbox_inches='tight')
 plt.show()
-
 
 
 
@@ -178,7 +218,6 @@ plt.show()
 
 
 
-'''
 
 # Cropped Window
 #==========================================================================================
@@ -208,6 +247,7 @@ hit_count_map_cropped[mask] = 1
 
 
 
+
 # Cropped Sensor Hit Count Per-Pixel Plot
 #==========================================================================================
 norm = LogNorm(vmin=1, vmax=np.max(hit_count_map_cropped[hit_count_map_cropped > 0]) if np.any(hit_count_map_cropped > 0) else 1)
@@ -224,18 +264,10 @@ plt.show()
 
 
 
+
 # Isolated Pixels
 #==========================================================================================
 # Finding isolated pixels
-'''
-data_isolated = isolated_hits(
-    data_cropped,
-    slice_width=1e7,
-    iso_dist=2,
-    x_range=(x_start, x_end),
-    y_range=(y_start, y_end))
-'''
-### NEW TEMPORAL FILTER
 data_isolated = isolated_hits(
     data_cropped,
     slice_width=1e5,
@@ -299,9 +331,129 @@ stats_list.append(all_stats)
 
 
 
+# ToA Distribution Histograms
+#==========================================================================================
+
+# Prepare ToA data for all three datasets
+data_isolated_toa = data_isolated.copy()
+data_isolated_toa['toa'] = pd.to_numeric(data_isolated_toa['toa'], errors='coerce')
+data_isolated_toa = data_isolated_toa.replace([np.inf, -np.inf], np.nan).dropna(subset=['toa'])
+data_isolated_toa = data_isolated_toa[data_isolated_toa['toa'] < 1e9]
+
+data_cropped_toa = data_cropped.copy()
+data_cropped_toa['toa'] = pd.to_numeric(data_cropped_toa['toa'], errors='coerce')
+data_cropped_toa = data_cropped_toa.replace([np.inf, -np.inf], np.nan).dropna(subset=['toa'])
+data_cropped_toa = data_cropped_toa[data_cropped_toa['toa'] < 1e9]
+
+data_all_toa = data.copy()
+data_all_toa['toa'] = pd.to_numeric(data_all_toa['toa'], errors='coerce')
+data_all_toa = data_all_toa.replace([np.inf, -np.inf], np.nan).dropna(subset=['toa'])
+data_all_toa = data_all_toa[data_all_toa['toa'] < 1e9]
+
+# Create ToA distribution plot
+fig_toa_dist = plt.figure(figsize=(20, 9))
+fig_toa_dist.suptitle(f'Time-of-Arrival (ToA) Distributions at {energy_keV}', y=1.02, color='white')
+
+# Isolated hits
+ax1 = fig_toa_dist.add_subplot(131)
+if len(data_isolated_toa) > 0:
+    ax1.hist(data_isolated_toa['toa'], bins=100, color='deepskyblue', alpha=0.7, edgecolor='black')
+    ax1.set_xlabel('Time-of-Arrival (ToA) [ns]', color='white')
+    ax1.set_ylabel('Counts', color='white')
+    ax1.set_title('Isolated Hits', color='white')
+    ax1.grid(True, alpha=0.3)
+
+# Cropped pixels
+ax2 = fig_toa_dist.add_subplot(132)
+if len(data_cropped_toa) > 0:
+    ax2.hist(data_cropped_toa['toa'], bins=100, color='darkorange', alpha=0.7, edgecolor='black')
+    ax2.set_xlabel('Time-of-Arrival (ToA) [ns]', color='white')
+    ax2.set_ylabel('Counts', color='white')
+    ax2.set_title('Cropped Pixels', color='white')
+    ax2.grid(True, alpha=0.3)
+
+# All pixels
+ax3 = fig_toa_dist.add_subplot(133)
+if len(data_all_toa) > 0:
+    ax3.hist(data_all_toa['toa'], bins=100, color='limegreen', alpha=0.7, edgecolor='black')
+    ax3.set_xlabel('Time-of-Arrival (ToA) [ns]', color='white')
+    ax3.set_ylabel('Counts', color='white')
+    ax3.set_title('All Pixels', color='white')
+    ax3.grid(True, alpha=0.3)
+
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, f'ToA_Distributions_{energy_keV}'), dpi=150, bbox_inches='tight')
+plt.show()
+
+
+
+
+# ToA vs ToT Correlation Plot
+#==========================================================================================
+fig_corr = plt.figure(figsize=(20, 9))
+fig_corr.suptitle(f'ToA vs ToT Correlation at {energy_keV}', y=1.02, color='white')
+
+# Isolated hits correlation
+ax1 = fig_corr.add_subplot(131)
+if len(data_isolated_toa) > 0 and len(data_isolated) > 0:
+    isolated_corr = data_isolated[['tot', 'toa']].copy()
+    isolated_corr['tot'] = pd.to_numeric(isolated_corr['tot'], errors='coerce')
+    isolated_corr['toa'] = pd.to_numeric(isolated_corr['toa'], errors='coerce')
+    isolated_corr = isolated_corr.replace([np.inf, -np.inf], np.nan).dropna()
+    isolated_corr = isolated_corr[isolated_corr['toa'] < 1e9]
+    
+    if len(isolated_corr) > 0:
+        h1 = ax1.hist2d(isolated_corr['tot'], isolated_corr['toa'], 
+                        bins=[50, 50], cmap='viridis', norm=LogNorm())
+        ax1.set_xlabel('Time-over-Threshold (ToT) [ns]', color='white')
+        ax1.set_ylabel('Time-of-Arrival (ToA) [ns]', color='white')
+        ax1.set_title('Isolated Hits', color='white')
+        plt.colorbar(h1[3], ax=ax1, label='Counts')
+
+# Cropped pixels correlation
+ax2 = fig_corr.add_subplot(132)
+if len(data_cropped_toa) > 0 and len(data_cropped) > 0:
+    cropped_corr = data_cropped[['tot', 'toa']].copy()
+    cropped_corr['tot'] = pd.to_numeric(cropped_corr['tot'], errors='coerce')
+    cropped_corr['toa'] = pd.to_numeric(cropped_corr['toa'], errors='coerce')
+    cropped_corr = cropped_corr.replace([np.inf, -np.inf], np.nan).dropna()
+    cropped_corr = cropped_corr[cropped_corr['toa'] < 1e9]
+    
+    if len(cropped_corr) > 0:
+        h2 = ax2.hist2d(cropped_corr['tot'], cropped_corr['toa'], 
+                        bins=[50, 50], cmap='viridis', norm=LogNorm())
+        ax2.set_xlabel('Time-over-Threshold (ToT) [ns]', color='white')
+        ax2.set_ylabel('Time-of-Arrival (ToA) [ns]', color='white')
+        ax2.set_title('Cropped Pixels', color='white')
+        plt.colorbar(h2[3], ax=ax2, label='Counts')
+
+# All pixels correlation
+ax3 = fig_corr.add_subplot(133)
+if len(data_all_toa) > 0 and len(data_all) > 0:
+    all_corr = data_all[['tot', 'toa']].copy()
+    all_corr['tot'] = pd.to_numeric(all_corr['tot'], errors='coerce')
+    all_corr['toa'] = pd.to_numeric(all_corr['toa'], errors='coerce')
+    all_corr = all_corr.replace([np.inf, -np.inf], np.nan).dropna()
+    all_corr = all_corr[all_corr['toa'] < 1e9]
+    
+    if len(all_corr) > 0:
+        h3 = ax3.hist2d(all_corr['tot'], all_corr['toa'], 
+                        bins=[50, 50], cmap='viridis', norm=LogNorm())
+        ax3.set_xlabel('Time-over-Threshold (ToT) [ns]', color='white')
+        ax3.set_ylabel('Time-of-Arrival (ToA) [ns]', color='white')
+        ax3.set_title('All Pixels', color='white')
+        plt.colorbar(h3[3], ax=ax3, label='Counts')
+
+plt.tight_layout()
+plt.savefig(os.path.join(output_dir, f'ToA_vs_ToT_Correlation_{energy_keV}'), dpi=150, bbox_inches='tight')
+plt.show()
+
+
+
+
 # Export data to a full analysis csv
 #==========================================================================================
-csv_filename = "analysis.csv"  # Central analysis file
+csv_filename = "analysis.csv"  # analysis file (for now works only for NanoMAX data´)
 unique_keys = ['filename', 'energy', 'data_type']  # To identify duplicate entries
 
 # Create DataFrame from current session
@@ -319,7 +471,7 @@ column_order = [
     'fwhm', 'fwhm_err',
     'peak_tot_val',
     'peak_tot_count',
-    'peak_tot_fit'ToTdata_datadriven_20250608_104654.h5
+    'peak_tot_fit'
 ]
 
 # Fill in missing columns just in case
@@ -343,4 +495,3 @@ else:
 # Write back to file
 combined.to_csv(csv_filename, index=False)
 print(f"[INFO] Analysis data written to {csv_filename}")
-'''
