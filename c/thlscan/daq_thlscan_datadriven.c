@@ -24,8 +24,8 @@ static uint64_t n_hits = 0;
 #define COARSE_STEP_MV 80.0 //Vthreshold_coarse step in mV
 #define MAX_THRESHOLD_MV ((MAX_COARSE * COARSE_STEP_MV) + (MAX_FINE * FINE_STEP_MV))
 
-#define THL_MIN_MV 820.0  // Start at 100 mV to avoid noise edge
-#define THL_MAX_MV 1200.0 // Conservative max voltage
+#define THL_MIN_MV 500.0  // Start at 100 mV to avoid noise edge
+#define THL_MAX_MV 800.0 // Conservative max voltage
 #define THL_STEP_MV 5.0  // Step in threshold voltage
 
 #define FRAMES_PER_THL 1
@@ -377,7 +377,7 @@ void configure(katherine_config_t *config, int thl_value) {
     config->bias_id                 = 0;
     config->acq_time                = 1e8; // 100ms per frame
     config->no_frames               = 1;
-    config->bias                    = 155; // V
+    config->bias                    = -40; // V
 
     config->delayed_start           = false;
 
@@ -509,8 +509,6 @@ void frame_ended(void *user_ctx, int frame_idx, bool completed, const katherine_
     printf(" - katherine->pc sent %lu pixels\n", info->sent_pixels);
     printf(" - state: %s\n", (completed ? "completed" : "not completed"));
     
-    // Store THL scan point
-    write_thl_scan_point(h5_manager.current_thl, n_hits);
     
     // Store last frame info
     memcpy(&last_frame_info, info, sizeof(katherine_frame_info_t));
