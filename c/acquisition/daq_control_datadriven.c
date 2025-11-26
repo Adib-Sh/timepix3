@@ -219,7 +219,7 @@ void configure(katherine_config_t *config) {
     config->bias_id                 = 0;
     config->acq_time                = 1e9; // 500ms
     config->no_frames               = 1;
-    config->bias                    = 155; // V
+    config->bias                    = -40; // V
 
     config->delayed_start           = false;
 
