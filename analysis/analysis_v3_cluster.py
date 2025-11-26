@@ -8,8 +8,6 @@ import pandas as pd
 from scipy.spatial import KDTree
 setup_plot_style()
 
-
-
   
     
  
@@ -21,14 +19,14 @@ timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 #energy_keV, upper_lim, lower_lim = "16keV*", 20, 0
 #input_file = input_dir + "/ToTdata_datadriven_20250608_104654.h5"
 
-energy_keV, upper_lim, lower_lim = "12keV", 16, 0
-input_file = input_dir+"/ToTdata_datadriven_20250608_115316.h5"
+#energy_keV, upper_lim, lower_lim = "12keV", 16, 0
+#input_file = input_dir+"/ToTdata_datadriven_20250608_115316.h5"
 
 #energy_keV, upper_lim, lower_lim = "10keV" , 14, 0
 #input_file = input_dir+"/ToTdata_datadriven_20250608_120847.h5"
 
-#energy_keV, upper_lim, lower_lim = "8keV", 12, 0
-#input_file = input_dir+"/ToTdata_datadriven_20250608_122428.h5"
+energy_keV, upper_lim, lower_lim = "8keV", 12, 0
+input_file = input_dir+"/ToTdata_datadriven_20250608_122428.h5"
 
 #energy_keV, upper_lim, lower_lim = "7keV", 12, 0
 #input_file = input_dir+"/ToTdata_datadriven_20250608_125050.h5"
@@ -208,6 +206,51 @@ def analyze_charge_sharing(clusters_df, min_cluster_size=2):
     }
     
     return stats, charge_sharing, single_pixel
+
+
+
+def fast_cluster_finder(df, temporal_window=3, spatial_distance=3):
+    """Extremely fast charge sharing cluster finder using cKDTree."""
+    x = df["x"].to_numpy(np.float32)
+    y = df["y"].to_numpy(np.float32)
+    toa = df["toa"].to_numpy(np.float32)
+    tot = df["tot"].to_numpy(np.float32)
+
+    n = len(x)
+    visited = np.zeros(n, dtype=bool)
+    clusters = []
+
+    # Build KDTree once
+    coords = np.column_stack((x, y))
+    tree = cKDTree(coords)
+
+    for i in range(n):
+        if visited[i]:
+            continue
+        # Temporal mask
+        mask_time = np.abs(toa - toa[i]) <= temporal_window
+        # Find neighbors within spatial distance
+        idx = tree.query_ball_point(coords[i], spatial_distance)
+        idx = np.array(idx, dtype=int)
+        idx = idx[mask_time[idx] & ~visited[idx]]
+        visited[idx] = True
+        # Cluster data
+        cl_x, cl_y, cl_toa, cl_tot = x[idx], y[idx], toa[idx], tot[idx]
+        clusters.append((
+            len(idx),
+            cl_x.mean(),
+            cl_y.mean(),
+            cl_toa.mean(),
+            cl_toa.min(),
+            cl_toa.max(),
+            cl_tot.sum()
+        ))
+    if not clusters:
+        return pd.DataFrame(columns=["n_pixels","x_mean","y_mean","toa_mean","toa_min","toa_max","tot_sum"])
+    return pd.DataFrame(clusters, columns=["n_pixels","x_mean","y_mean","toa_mean","toa_min","toa_max","tot_sum"])
+
+
+
     
     
 # Data Preparation for Plotting
@@ -253,7 +296,7 @@ counts_bin, _, _ = np.histogram2d(data['x'], data['y'], bins=[x_edges_bin, y_edg
 mean_tot_bin = np.divide(tot_hist_bin, counts_bin, out=np.zeros_like(tot_hist_bin), where=counts_bin != 0)
 
 
-
+'''
 
 # Hit Count Per-Pixel Plot
 #==========================================================================================
@@ -316,7 +359,7 @@ plt.tight_layout()
 plt.savefig(os.path.join(output_dir, 'Per-Pixel Time-over-Threshold (ToT)'), dpi=150, bbox_inches='tight')
 plt.show()
 
-
+'''
 
 
 # Cropped Window
@@ -329,8 +372,8 @@ if energy_keV == "16keV*": #Only for 16kev NanoMAX data
 else:
     # Define window
 
-    x_start, x_end = 100, 130
-    y_start, y_end = 110, 140
+    x_start, x_end = 100, 120
+    y_start, y_end = 110, 130
 
 data_cropped = data[
     (data['x'] >= x_start) & (data['x'] < x_end) &
@@ -348,7 +391,7 @@ mask = np.ones_like(hit_count_map_cropped, dtype=bool)
 mask[y_start:y_end, x_start:x_end] = False
 hit_count_map_cropped[mask] = 1
 
-
+'''
 
 # Cropped Sensor Hit Count Per-Pixel Plot
 #==========================================================================================
@@ -364,7 +407,7 @@ plot_pixel_2d(ax2, hit_count_map_cropped, "Cropped Beam Window 2D Plot", norm=no
 plt.savefig(os.path.join(output_dir, 'Cropped Beam Window Per-Pixel Hit Count'), dpi=150, bbox_inches='tight')
 plt.show()
 
-
+'''
 
 # Charge Sharing Cluster Analysis
 #==========================================================================================
@@ -375,8 +418,8 @@ print("="*80)
 # Find charge sharing clusters
 clusters_df = find_charge_sharing_clusters(
     data_cropped,
-    temporal_window=3,      # 25 TOA units
-    spatial_distance=3,     # 1.5 pixels (diagonal neighbors)
+    temporal_window=5,
+    spatial_distance=2,
     x_range=(x_start, x_end),
     y_range=(y_start, y_end)
 )
@@ -384,7 +427,7 @@ clusters_df = find_charge_sharing_clusters(
 # Analyze charge sharing
 cluster_stats, charge_sharing, single_pixel = analyze_charge_sharing(
     clusters_df, 
-    min_cluster_size=3
+    min_cluster_size=2
 )
 
 print(f"\nCluster Statistics:")
@@ -486,7 +529,7 @@ all_stats.update({
 })
 stats_list.append(all_stats)
 
-
+'''
 
 # ToA Distribution Histograms
 #==========================================================================================
@@ -642,7 +685,7 @@ plt.savefig(os.path.join(output_dir, 'ToA_vs_ToT_Correlation'), dpi=150, bbox_in
 plt.show()
 
 
-
+'''
 #==========================================================================================
 # Export data to a full analysis csv
 #==========================================================================================
