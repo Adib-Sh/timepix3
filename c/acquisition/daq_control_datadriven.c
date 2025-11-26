@@ -219,7 +219,7 @@ void configure(katherine_config_t *config) {
     config->bias_id                 = 0;
     config->acq_time                = 1e9; // 500ms
     config->no_frames               = 1;
-    config->bias                    = -40; // V
+    config->bias                    = 40; // V
 
     config->delayed_start           = false;
 
@@ -241,8 +241,8 @@ void configure(katherine_config_t *config) {
     config->dacs.named.VPReamp_NCAS          = 128;
     config->dacs.named.Ibias_Ikrum           = 15;
     config->dacs.named.Vfbk                  = 164;
-    config->dacs.named.Vthreshold_fine       = 424;
-    config->dacs.named.Vthreshold_coarse     = 7;
+    config->dacs.named.Vthreshold_fine       = 487;
+    config->dacs.named.Vthreshold_coarse     = 6;
     config->dacs.named.Ibias_DiscS1_ON       = 100;
     config->dacs.named.Ibias_DiscS1_OFF      = 8;
     config->dacs.named.Ibias_DiscS2_ON       = 128;
