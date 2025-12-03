@@ -425,8 +425,8 @@ def fit_skew_normal(data, bins=18, data_type="All Pixels", legend_loc='upper lef
     ax.plot(x_peak, peak_count_fit, 'o', color='seagreen', label=f'Peak ToT (fit) = {x_peak:.4f}')
     ax.plot(peak_tot_val, peak_height_hist, 'ro', label=f'Peak ToT (count) = {peak_tot_val:.4f}')
 
-    ax.set_xlabel('Time-over-Threshold (ToT)', fontsize=12)
-    ax.set_ylabel('Counts', fontsize=12)
+    ax.set_xlabel('Time-over-Threshold (ToT)', fontsize=14)
+    ax.set_ylabel('Counts', fontsize=14)
     ax.set_title(f'ToT Distribution with Skew-Normal Fit {data_type}', pad=20)
     ax.legend(loc=legend_loc, fontsize=10)
 

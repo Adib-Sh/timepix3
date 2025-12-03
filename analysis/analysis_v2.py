@@ -15,11 +15,11 @@ setup_plot_style()
    
 # Import Data NanoMAX
 #==========================================================================================
-input_dir = "/home/adisha/git/libkatherine/build/BeamData 20250608 NanoMAX"
+input_dir = "/home/adisha/git/libkatherine/build/LGAD_0142_data_20251126"
 timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-energy_keV, upper_lim, lower_lim = "16keV", 20, 0
-input_file = input_dir + "/ToTdata_datadriven_20250608_104654.h5"
+energy_keV, upper_lim, lower_lim = "Fe55", 100, 0
+input_file = input_dir + "/ToTdata_datadriven_20251126_175814.h5"
 
 #energy_keV, upper_lim, lower_lim = "12keV", 16, 0
 #input_file = input_dir+"/ToTdata_datadriven_20250608_115316.h5"
@@ -55,8 +55,8 @@ input_file = input_dir + "/ToTdata_datadriven_20250608_104654.h5"
 
 # Import Data FemtoMAX
 #==========================================================================================
-input_dir ="/home/adisha/git/libkatherine/build/BeamData 20250908 FemtoMAX"
-timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+#input_dir ="/home/adisha/git/libkatherine/build/BeamData 20250908 FemtoMAX"
+#timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
 
 #energy_keV, upper_lim, lower_lim = "17keV", 30, 3
@@ -227,8 +227,8 @@ if energy_keV == "16keV":
     y_start, y_end = 140, 145
 else:
     # Define window
-    x_start, x_end = 110, 115
-    y_start, y_end = 120, 125
+    x_start, x_end = 0, 30
+    y_start, y_end = 130, 180
 
 data_cropped = data[
     (data['x'] >= x_start) & (data['x'] < x_end) &
@@ -287,29 +287,49 @@ data_isolated = data_isolated.replace([np.inf, -np.inf], np.nan).dropna(subset=[
 # ToT Distributions and Stat List
 #==========================================================================================
 stats_list = []
+MIN_DATA_POINTS = 10  # Minimum number of unique values needed for fitting
 
 # Isolated
-isolated_stats = fit_skew_normal(data_isolated["tot"], len(data_isolated['tot'].unique()),
-                data_type = f"(Isolated Hits) at {energy_keV}", output_dir=output_dir)
-isolated_stats.update({
-    'filename': os.path.basename(input_file),
-    'energy': energy_keV,
-    'timestamp': timestamp,
-    'data_type': 'isolated',
-})
-stats_list.append(isolated_stats)
+n_unique_isolated = len(data_isolated['tot'].unique())
+print(f"[INFO] Isolated hits: {len(data_isolated)} total, {n_unique_isolated} unique ToT values")
+
+if n_unique_isolated >= MIN_DATA_POINTS:
+    try:
+        isolated_stats = fit_skew_normal(data_isolated["tot"], n_unique_isolated,
+                        data_type = f"(Isolated Hits) at {energy_keV}", output_dir=output_dir)
+        isolated_stats.update({
+            'filename': os.path.basename(input_file),
+            'energy': energy_keV,
+            'timestamp': timestamp,
+            'data_type': 'isolated',
+        })
+        stats_list.append(isolated_stats)
+    except Exception as e:
+        print(f"[WARNING] Could not fit isolated hits: {e}")
+else:
+    print(f"[WARNING] Skipping isolated hits fit - insufficient data ({n_unique_isolated} < {MIN_DATA_POINTS} unique values)")
 
 
 # Cropped
-cropped_stats = fit_skew_normal(data_cropped["tot"], len(data_cropped['tot'].unique()),
-                data_type = f"(Cropped Pixels) at {energy_keV}", output_dir=output_dir)
-cropped_stats.update({
-    'filename': os.path.basename(input_file),
-    'energy': energy_keV,
-    'timestamp': timestamp,
-    'data_type': 'cropped',
-})
-stats_list.append(cropped_stats)
+n_unique_cropped = len(data_cropped['tot'].unique())
+print(f"[INFO] Cropped hits: {len(data_cropped)} total, {n_unique_cropped} unique ToT values")
+
+if n_unique_cropped >= MIN_DATA_POINTS:
+    try:
+        cropped_stats = fit_skew_normal(data_cropped["tot"], n_unique_cropped,
+                        data_type = f"(Cropped Pixels) at {energy_keV}", output_dir=output_dir)
+        cropped_stats.update({
+            'filename': os.path.basename(input_file),
+            'energy': energy_keV,
+            'timestamp': timestamp,
+            'data_type': 'cropped',
+        })
+        stats_list.append(cropped_stats)
+    except Exception as e:
+        print(f"[WARNING] Could not fit cropped hits: {e}")
+else:
+    print(f"[WARNING] Skipping cropped hits fit - insufficient data ({n_unique_cropped} < {MIN_DATA_POINTS} unique values)")
+
 
 
 # All
