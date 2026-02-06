@@ -8,17 +8,13 @@ find_package(HDF5 REQUIRED)
 include_directories(${HDF5_INCLUDE_DIRS})
 
 set(KATHERINE_SOURCES
-    "src/acquisition.c"
-    "src/px_config.c"
-    "src/config.c"
-    "src/device.c"
-    "src/status.c"
-    "src/udp_nix.c"
-    "src/udp_win.c"
-    "src/crd.h"
-    "src/bitfields.h"
-    "src/command_interface.h"
-    "src/md.h"
+    src/acquisition.c
+    src/px_config.c
+    src/config.c
+    src/device.c
+    src/status.c
+    src/udp_nix.c
+    src/udp_win.c
 )
 
 set(KATHERINE_HEADERS
@@ -42,9 +38,13 @@ add_library(katherine SHARED ${KATHERINE_SOURCES} ${KATHERINE_HEADERS})
 target_include_directories(katherine
     PUBLIC
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+        # This allows users of the library to find headers
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/include>
     PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/src
+        # ADD THIS LINE: This allows the source files themselves 
+        # to find headers using the <katherine/header.h> syntax
+        ${CMAKE_CURRENT_SOURCE_DIR}/include
 )
 
 # Link HDF5 to the Katherine library

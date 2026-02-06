@@ -25,7 +25,7 @@ static uint64_t n_hits = 0;
 #define MAX_THRESHOLD_MV ((MAX_COARSE * COARSE_STEP_MV) + (MAX_FINE * FINE_STEP_MV))
 
 #define THL_MIN_MV 100.0  // Start at 100 mV to avoid noise edge
-#define THL_MAX_MV 1200.0 // Conservative max voltage
+#define THL_MAX_MV 800.0 // Conservative max voltage
 #define THL_STEP_MV 5.0  // Step in threshold voltage
 
 #define FRAMES_PER_THL 1
@@ -375,7 +375,7 @@ int main(int argc, char *argv[]) {
 void configure(katherine_config_t *config, int thl_value) {
     // For now, these constants are hard-coded. (Used from krun)
     config->bias_id                 = 0;
-    config->acq_time                = 1e8; // 100ms per frame
+    config->acq_time                = 1e9; // 100ms per frame
     config->no_frames               = 1;
     config->bias                    = -40; // V
 
