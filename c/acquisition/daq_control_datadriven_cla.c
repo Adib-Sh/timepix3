@@ -20,7 +20,7 @@ static struct argp_option options[] = {
     {"config",           'c', "FILE",       0, "Path to pixel config .bmc file (default: chipconfig_D4-W0005.bmc)"},
     {"address",          'a', "IP",         0, "IP address of the device (default: 192.168.1.218)"},
     {"output",           'o', "FILE",       0, "Output HDF5 file name (default: pixel_data_YYYYMMDD_HHMMSS.h5)"},
-    {"acqtime",          't', "TIME",       0, "Acquisition time in seconds (default: 1e10)"},
+    {"acqtime",          't', "TIME",       0, "Acquisition time in nanoseconds (default: 1e9)"},
     {"polarity",         'p', "MODE",       0, "Polarity mode: 0=electrons, 1=holes (default: 1)"},
     {"frequency",        'F', "FREQ",       0, "Clock frequency (10, 20, 40, 80) (default: 40)"},
     {"vth-fine",         'v', "VALUE",      0, "Vthreshold_fine DAC value (default: 442)"},
@@ -53,7 +53,7 @@ struct arguments {
 #define DEFAULT_FRAMES 1
 #define DEFAULT_CONFIG "chipconfig_D4-W0005.bmc"
 #define DEFAULT_ADDRESS "192.168.1.218"
-#define DEFAULT_ACQTIME 1e10
+#define DEFAULT_ACQTIME 1e9
 #define DEFAULT_POLARITY 1
 #define DEFAULT_FREQUENCY 40
 #define DEFAULT_VTH_FINE 424
@@ -72,9 +72,9 @@ void display_detailed_help() {
     printf("  -c, --config=FILE           Path to the pixel configuration file in .bmc format (default: chipconfig_D4-W0005.bmc).\n");
     printf("  -a, --address=IP            IP address of the Timepix3 device (default: 192.168.1.218).\n"); 
     printf("  -o, --output=FILE           Output HDF5 file name (default: pixel_data_YYYYMMDD_HHMMSS.h5).\n");
-    printf("  -t, --acqtime=TIME          Acquisition time in seconds (default: 1e10).\n");
+    printf("  -t, --acqtime=TIME          Acquisition time in nanoseconds (default: 1e9).\n");
     printf("  -p, --polarity=MODE       Polarity mode: 0 for electrons, 1 for holes (default: 1).\n");
-    printf("  -F, --frequency=FREQ        Clock frequency in MHz (10, 20, 40, 80) (default: 40).\n");
+    printf("  -F, --frequency=FREQ        Clock frequency in MHz (40, 80, 160) (default: 40).\n");
     printf("  -v, --vth-fine=VALUE        Vthreshold_fine DAC value (default: 442).\n");
     printf("  -V, --vth-coarse=VALUE      Vthreshold_coarse DAC value (default: 7).\n");
     printf("  -m, --acq-mode=MODE         Acquisition mode: 0 for TOA, 1 for TOA_TOT, 2 for EVENT_ITOT (default: 1).\n");
@@ -145,9 +145,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'F': 
             args->frequency = atoi(arg); 
             // Validate frequency
-            if (args->frequency != 10 && args->frequency != 20 && 
-                args->frequency != 40 && args->frequency != 80) {
-                fprintf(stderr, "Invalid frequency: %d. Must be 10, 20, 40, or 80 MHz.\n", args->frequency);
+            if (                args->frequency != 40 && args->frequency != 80 && args->frequency != 160) {
+                fprintf(stderr, "Invalid frequency: %d. Must be 40, 80, or 160 MHz.\n", args->frequency);
                 args->frequency = 40; // Reset to default
             }
             break;

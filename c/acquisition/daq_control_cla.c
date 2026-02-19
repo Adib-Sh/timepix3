@@ -20,9 +20,9 @@ static struct argp_option options[] = {
     {"config",           'c', "FILE",       0, "Path to pixel config .bmc file (default: chipconfig_D4-W0005.bmc)"},
     {"address",          'a', "IP",         0, "IP address of the device (default: 192.168.1.218)"},
     {"output",           'o', "FILE",       0, "Output HDF5 file name (default: auto-generated with timestamp)"},
-    {"acqtime",          't', "TIME",       0, "Acquisition time in seconds (default: 1e9)"},
+    {"acqtime",          't', "TIME",       0, "Acquisition time in nanoseconds (default: 1e9)"},
     {"polarity",         'p', "MODE",       0, "Polarity mode: 0=electrons, 1=holes (default: 1)"},
-    {"frequency",        'F', "FREQ",       0, "Clock frequency (10, 20, 40, 80, 160) (default: 40)"},
+    {"frequency",        'F', "FREQ",       0, "Clock frequency (40, 80, 160) (default: 40)"},
     {"vth-fine",         'v', "VALUE",      0, "Vthreshold_fine DAC value (default: 424)"},
     {"vth-coarse",       'V', "VALUE",      0, "Vthreshold_coarse DAC value (default: 7)"},
     {"acq-mode",         'm', "MODE",       0, "Acquisition mode (0=TOA_TOT, 1=TOA, 2=EVENT_ITOT) (default: 1)"},
@@ -79,7 +79,7 @@ void display_detailed_help() {
     printf("  -o, --output=FILE           Output HDF5 file name (default: auto-generated with timestamp).\n");
     printf("  -t, --acqtime=TIME          Acquisition time in seconds (default: 1e9).\n");
     printf("  -p, --polarity=MODE         Polarity mode: 0 for electrons, 1 for holes (default: 1).\n");
-    printf("  -F, --frequency=FREQ        Clock frequency in MHz (10, 20, 40, 80, 160) (default: 40).\n");
+    printf("  -F, --frequency=FREQ        Clock frequency in MHz (40, 80, 160) (default: 40).\n");
     printf("  -v, --vth-fine=VALUE        Vthreshold_fine DAC value (default: 424).\n");
     printf("  -V, --vth-coarse=VALUE      Vthreshold_coarse DAC value (default: 7).\n");
     printf("  -m, --acq-mode=MODE         Acquisition mode: 0 for TOA_TOT, 1 for TOA, 2 for EVENT_ITOT (default: 1).\n");
@@ -148,9 +148,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
         case 'F': 
             args->frequency = atoi(arg); 
             // Validate frequency
-            if (args->frequency != 10 && args->frequency != 20 && 
-                args->frequency != 40 && args->frequency != 80 && args->frequency != 160) {
-                fprintf(stderr, "Invalid frequency: %d. Must be 10, 20, 40, 80, or 160 MHz.\n", args->frequency);
+            if (args->frequency != 40 && args->frequency != 80 && args->frequency != 160) {
+                fprintf(stderr, "Invalid frequency: %d. Must be 40, 80, or 160 MHz.\n", args->frequency);
                 args->frequency = 40; // Reset to default
             }
             break;
