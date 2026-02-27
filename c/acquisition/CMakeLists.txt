@@ -1,8 +1,2 @@
-add_executable(daq_control_datadriven_cla daq_control_datadriven_cla.c)
-target_link_libraries(daq_control_datadriven_cla katherine)
-
-add_executable(daq_control_cla daq_control_cla.c)
-target_link_libraries(daq_control_cla katherine)
-
-add_executable(daq_control_datadriven_cla_visual daq_control_datadriven_cla_visual.c)
-target_link_libraries(daq_control_datadriven_cla_visual katherine)
+add_executable(chargeInjection chargeInjection.c)
+target_link_libraries(chargeInjection katherine)

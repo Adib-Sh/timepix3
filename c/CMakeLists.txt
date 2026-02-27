@@ -68,3 +68,7 @@ install(FILES ${CMAKE_CURRENT_BINARY_DIR}/katherine.pc DESTINATION ${CMAKE_INSTA
 #    add_subdirectory(examples)
 #endif(BUILD_EXAMPLES)
 add_subdirectory(acquisition)
+target_include_directories(chargeInjection PRIVATE
+    ${CMAKE_SOURCE_DIR}/c/include
+    ${CMAKE_SOURCE_DIR}/c/src   # if some headers are only in src
+)
