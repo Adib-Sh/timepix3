@@ -1,8 +1,24 @@
 /**
- * Real Charge Injection and Equalization for Timepix3 / LGAD
+ * chargeInjection_step1.c
  *
- * Measures per-pixel threshold by injecting test charges,
- * equalizes the pixel configuration, and saves it to a .bmc file.
+ * Step 1 of the High-Low THL equalization pipeline.
+ *
+ * Purpose:
+ *   Inject a SINGLE fixed charge into ALL pixels simultaneously and record
+ *   which pixels respond. Results are saved to:
+ *     - injection_result.bmc  : pixel config used (trim=7 + test-enable on
+ *                               all pixels) — serves as the neutral baseline
+ *                               config for subsequent equalization steps.
+ *     - injection_result.txt  : human-readable hit map: total counts, list of
+ *                               fired pixels (x, y, hit_count), and a summary.
+ *
+ * Tunable parameters (top of file):
+ *   INJECT_VTP_FINE        — test pulse amplitude   (0–511)
+ *   INJECT_VTHRESHOLD_FINE — global discriminator threshold (0–511)
+ *   INJECT_NUM_PULSES      — how many pulses to fire per acquisition
+ *
+ * All other logic (device init, callbacks, BMC helpers) is unchanged from
+ * chargeInjection.c so this file slots cleanly into the existing build.
  *
  * Author: Adib Shaker
  */
@@ -12,8 +28,8 @@
 #include <stdint.h>
 #include <string.h>
 #include <errno.h>
-#include <unistd.h>   // for usleep
-#include <time.h>
+#include <unistd.h>
+/* No <math.h> dependency — isqrt() used instead to avoid linking -lm */
 #include <katherine/katherine.h>
 #include <katherine/config.h>
 #include <katherine/px_config.h>
@@ -21,265 +37,593 @@
 #include <katherine/acquisition.h>
 #include <katherine/device.h>
 
-#define NUM_PIXELS 65536
-#define OUTPUT_FILENAME "equalized_real.bmc"
+/* =========================================================================
+ * Pixel type
+ * ====================================================================== */
+typedef katherine_px_f_toa_tot_t px_t;
+
+/* =========================================================================
+ * *** TUNABLE PARAMETERS — adjust these before each run ***
+ * ====================================================================== */
+#define INJECT_VTP_FINE          256   /* Test pulse amplitude    (0–511)  */
+#define INJECT_VTHRESHOLD_FINE   120   /* Global threshold THL    (0–511)  */
+#define INJECT_VTHRESHOLD_COARSE   7   /* Coarse threshold — usually fixed */
+#define INJECT_NUM_PULSES        100   /* Pulses fired per acquisition     */
+
+/* =========================================================================
+ * Constants
+ * ====================================================================== */
+static const char *REMOTE_ADDR = "192.168.1.218";
+
+#define SENSOR_WIDTH    256
+#define SENSOR_HEIGHT   256
+#define NUM_PIXELS      (SENSOR_WIDTH * SENSOR_HEIGHT)   /* 65 536 */
+
+#define NEUTRAL_TRIM    7    /* Midpoint of 4-bit trim range (0–15).
+                              * Gives equal headroom for correction in both
+                              * directions during later equalization steps. */
+
+#define OUTPUT_BMC_FILE  "injection_result.bmc"
+#define OUTPUT_TXT_FILE  "injection_result.txt"
+
+/* Acquisition buffer sizes */
+#define ACQ_MD_SLOTS    (KATHERINE_MD_SIZE * 4096)
+#define ACQ_PIXEL_SLOTS (sizeof(px_t) * NUM_PIXELS * 2)
+
+/* Wait after acquisition_begin before reading — lets pulses propagate */
+#define INJECTION_DELAY_US  5000   /* 5 ms */
 
 #define DEBUG_PRINT(fmt, ...) printf("[DEBUG] " fmt "\n", ##__VA_ARGS__)
 
-// Threshold search parameters
-#define MAX_TEST_PULSE 255
-#define MIN_TEST_PULSE 0
-#define TEST_PULSE_STEP 5
-#define INJECTION_DELAY_US 5000 // 5 ms
+/* =========================================================================
+ * Global hit map — written by pixels_received(), cleared before each run.
+ * ====================================================================== */
+static uint64_t g_hit_map[SENSOR_HEIGHT][SENSOR_WIDTH];
 
-// Helper: write value into BMC pixel config
-void write_pixel_bmc(katherine_px_config_t *px_config, int pixel_idx, uint8_t val) {
-    int x = pixel_idx % 256;
-    int y = 255 - (pixel_idx / 256);
-    int word_idx = 64 * x + (y >> 2);
-    int shift = 8 * (3 - (y % 4));
-    px_config->words[word_idx] &= ~(0xFF << shift);
-    px_config->words[word_idx] |= ((uint32_t)val << shift);
+/* Forward declaration */
+void write_pixel_bmc(katherine_px_config_t *px_config, int pixel_idx, uint8_t val);
+uint8_t read_pixel_bmc(const katherine_px_config_t *px_config, int pixel_idx);
+
+/* =========================================================================
+ * Callbacks
+ * ====================================================================== */
+
+void frame_started(void *user_ctx, int frame_idx)
+{
+    printf("  [ACQ] Frame %d started.\n", frame_idx);
 }
 
-// Save px_config to a BMC file
-int save_bmc_file(const char *filename, const katherine_px_config_t *px_config) {
+void frame_ended(void *user_ctx, int frame_idx, bool completed,
+                 const katherine_frame_info_t *info)
+{
+    printf("  [ACQ] Frame %d ended — received: %lu  lost: %lu  state: %s\n",
+           frame_idx,
+           info->received_pixels,
+           info->lost_pixels,
+           completed ? "completed" : "not completed");
+}
+
+void pixels_received(void *user_ctx, const void *px, size_t count)
+{
+    const px_t *dpx = (const px_t *)px;
+    for (size_t i = 0; i < count; i++) {
+        int x = dpx[i].coord.x;
+        int y = dpx[i].coord.y;
+        if (x >= 0 && x < SENSOR_WIDTH && y >= 0 && y < SENSOR_HEIGHT) {
+            g_hit_map[y][x]++;
+        } else {
+            printf("  [WARN] Out-of-bounds pixel: (%d, %d)\n", x, y);
+        }
+    }
+}
+
+/*
+ * data_received — the library calls this for every raw UDP packet with NO
+ * NULL check. Must be registered or acquisition_read() will segfault.
+ * We discard the raw bytes — decoded pixels arrive via pixels_received().
+ */
+void data_received(void *user_ctx, const char *data, size_t size)
+{
+    (void)user_ctx; (void)data; (void)size;
+}
+
+/* =========================================================================
+ * BMC helpers
+ *
+ * Pixel byte layout (8 bits):
+ *   [7]   — unused
+ *   [6]   — unused
+ *   [5]   — test-enable  (1 = pixel receives test pulses)
+ *   [4]   — mask         (1 = pixel is disabled / masked)
+ *   [3:0] — trim value   (0–15)
+ * ====================================================================== */
+
+void write_pixel_bmc(katherine_px_config_t *px_config, int pixel_idx, uint8_t val)
+{
+    int col      = pixel_idx % 256;
+    int row      = 255 - (pixel_idx / 256);
+    int word_idx = 64 * col + (row >> 2);
+    int shift    = 8 * (3 - (row % 4));
+    px_config->words[word_idx] &= ~((uint32_t)0xFF << shift);
+    px_config->words[word_idx] |=  ((uint32_t)val  << shift);
+}
+
+uint8_t read_pixel_bmc(const katherine_px_config_t *px_config, int pixel_idx)
+{
+    int col      = pixel_idx % 256;
+    int row      = 255 - (pixel_idx / 256);
+    int word_idx = 64 * col + (row >> 2);
+    int shift    = 8 * (3 - (row % 4));
+    return (uint8_t)((px_config->words[word_idx] >> shift) & 0xFF);
+}
+
+int save_bmc_file(const char *filename, const katherine_px_config_t *px_config)
+{
     katherine_bmc_t buffer;
     for (int i = 0; i < NUM_PIXELS; i++) {
-        int x = i % 256;
-        int y = 255 - (i / 256);
-        int word_idx = 64 * x + (y >> 2);
-        int shift = 8 * (3 - (y % 4));
-        buffer.px_config[i] = (px_config->words[word_idx] >> shift) & 0xFF;
+        buffer.px_config[i] = read_pixel_bmc(px_config, i);
     }
-
     FILE *f = fopen(filename, "wb");
-    if (!f) {
-        perror("Failed to open output BMC file");
-        return errno;
-    }
+    if (!f) { perror("[ERROR] Failed to open BMC file"); return errno; }
     size_t written = fwrite(&buffer, 1, sizeof(katherine_bmc_t), f);
     fclose(f);
-    if (written != sizeof(katherine_bmc_t)) return EIO;
-
-    DEBUG_PRINT("BMC file saved successfully: %s", filename);
+    if (written != sizeof(katherine_bmc_t)) {
+        fprintf(stderr, "[ERROR] Short write to %s\n", filename);
+        return EIO;
+    }
+    printf("[OUT] BMC saved: %s\n", filename);
     return 0;
 }
 
-// ---------------------------------------------------------------------------
-// Device connection check
-//
-// The Katherine library may return 0 from status calls even with no hardware
-// present — the UDP socket is created locally and no handshake is required.
-// We therefore validate the *content* of each reply, not just the return code:
-//
-//   - chip_id       must be a non-empty string
-//   - chip_detected must be true
-//   - data_rate     must be non-zero
-//   - temperatures  must be non-zero (real hardware is never exactly 0.0 C)
-//   - digital_test  return code is the only reliable binary pass/fail
-// ---------------------------------------------------------------------------
-int check_device_connection(katherine_device_t *device) {
-    int res;
-
-    printf("[CHECK] Verifying device connection to Katherine readout...\n");
-
-    // --- 1. Chip ID ---------------------------------------------------------
-    char chip_id[KATHERINE_CHIP_ID_STR_SIZE];
-    memset(chip_id, 0, sizeof(chip_id));
-    res = katherine_get_chip_id(device, chip_id);
-    if (res != 0) {
-        fprintf(stderr, "[ERROR] katherine_get_chip_id returned %d (%s)\n",
-                res, strerror(res));
-        fprintf(stderr, "        Is the Katherine readout powered and reachable?\n");
-        return res;
-    }
-    // An empty string means the readout never replied despite res == 0
-    if (chip_id[0] == '\0') {
-        fprintf(stderr, "[ERROR] Chip ID is empty — no response from hardware "
-                        "(library returned success without a real reply).\n");
-        return -1;
-    }
-    printf("[CHECK] Chip ID: %s\n", chip_id);
-
-    // --- 2. Communication status --------------------------------------------
-    katherine_comm_status_t comm_status;
-    memset(&comm_status, 0, sizeof(comm_status));
-    res = katherine_get_comm_status(device, &comm_status);
-    if (res != 0) {
-        fprintf(stderr, "[ERROR] katherine_get_comm_status returned %d (%s)\n",
-                res, strerror(res));
-        return res;
-    }
-    printf("[CHECK] Comm status — lines mask: 0x%x | data rate: %u Mbps | "
-           "chip detected: %s\n",
-           comm_status.comm_lines_mask,
-           comm_status.data_rate,
-           comm_status.chip_detected ? "Yes" : "No");
-    if (!comm_status.chip_detected) {
-        fprintf(stderr, "[ERROR] comm_status.chip_detected is false — "
-                        "Timepix3 not seen by the readout board.\n");
-        return -1;
-    }
-    if (comm_status.data_rate == 0) {
-        fprintf(stderr, "[ERROR] Data rate reported as 0 Mbps — "
-                        "no active data link detected.\n");
-        return -1;
-    }
-
-    // --- 3. Readout board temperature ---------------------------------------
-    float readout_temp = 0.0f;
-    res = katherine_get_readout_temperature(device, &readout_temp);
-    if (res != 0) {
-        fprintf(stderr, "[ERROR] katherine_get_readout_temperature returned %d (%s)\n",
-                res, strerror(res));
-        return res;
-    }
-    // Real hardware is never exactly 0.0 C — a zero reply means no response
-    if (readout_temp == 0.0f) {
-        fprintf(stderr, "[ERROR] Readout temperature is exactly 0.0 C — "
-                        "no real hardware response received.\n");
-        return -1;
-    }
-    printf("[CHECK] Readout temperature: %.2f C\n", readout_temp);
-
-    // --- 4. Sensor temperature ----------------------------------------------
-    float sensor_temp = 0.0f;
-    res = katherine_get_sensor_temperature(device, &sensor_temp);
-    if (res != 0) {
-        fprintf(stderr, "[ERROR] katherine_get_sensor_temperature returned %d (%s)\n",
-                res, strerror(res));
-        return res;
-    }
-    if (sensor_temp == 0.0f) {
-        fprintf(stderr, "[ERROR] Sensor temperature is exactly 0.0 C — "
-                        "no real hardware response received.\n");
-        return -1;
-    }
-    printf("[CHECK] Sensor temperature:  %.2f C\n", sensor_temp);
-
-    // --- 5. Digital test ----------------------------------------------------
-    // Exercises the internal data path on the readout — most reliable
-    // binary pass/fail indicator available in the API.
-    res = katherine_perform_digital_test(device);
-    if (res != 0) {
-        fprintf(stderr, "[ERROR] Digital test FAILED (res=%d: %s)\n",
-                res, strerror(res));
-        return res;
-    }
-    printf("[CHECK] Digital test passed.\n");
-
-    printf("[CHECK] *** All checks passed — device is connected and ready. ***\n");
-    return 0;
-}
-
-// ---------------------------------------------------------------------------
-// inject_charge_and_read
-// ---------------------------------------------------------------------------
-int inject_charge_and_read(katherine_device_t *dev,
-                           const katherine_config_t *config,
-                           int pixel_idx,
-                           uint8_t pulse_value)
+/* =========================================================================
+ * isqrt — integer square root, no <math.h> / -lm required.
+ * Returns floor(sqrt(n)) for any uint64_t n.
+ * ====================================================================== */
+static uint64_t isqrt(uint64_t n)
 {
+    if (n == 0) return 0;
+    uint64_t x = n;
+    uint64_t y = (x + 1) / 2;
+    while (y < x) { x = y; y = (x + n / x) / 2; }
+    return x;
+}
+
+/* =========================================================================
+ * save_txt_file
+ *
+ * Writes a human-readable summary of the hit map to a .txt file:
+ *   - Run parameters
+ *   - Total fired pixels and total hit count
+ *   - Per-pixel lines for every pixel that fired: X  Y  HITS
+ *   - Pixels that did NOT fire are noted in the summary count only
+ * ====================================================================== */
+int save_txt_file(const char *filename, int vtp_fine, int vth_fine,
+                  int vth_coarse, int num_pulses)
+{
+    FILE *f = fopen(filename, "w");
+    if (!f) { perror("[ERROR] Failed to open TXT file"); return errno; }
+
+    /* --- Header --------------------------------------------------------- */
+    fprintf(f, "=============================================================\n");
+    fprintf(f, "  Timepix3 / Katherine — Single Charge Injection Result\n");
+    fprintf(f, "=============================================================\n");
+    fprintf(f, "  VTP_fine             : %d\n", vtp_fine);
+    fprintf(f, "  Vthreshold_fine      : %d\n", vth_fine);
+    fprintf(f, "  Vthreshold_coarse    : %d\n", vth_coarse);
+    fprintf(f, "  Number of pulses     : %d\n", num_pulses);
+    fprintf(f, "  Trim (all pixels)    : %d (neutral midpoint)\n", NEUTRAL_TRIM);
+    fprintf(f, "-------------------------------------------------------------\n\n");
+
+    /* --- Count statistics ----------------------------------------------- */
+    uint64_t total_hits   = 0;
+    int      fired_pixels = 0;
+    uint64_t max_hits     = 0;
+    uint64_t min_hits_fired = UINT64_MAX;
+
+    for (int y = 0; y < SENSOR_HEIGHT; y++) {
+        for (int x = 0; x < SENSOR_WIDTH; x++) {
+            uint64_t h = g_hit_map[y][x];
+            if (h > 0) {
+                fired_pixels++;
+                total_hits += h;
+                if (h > max_hits)        max_hits = h;
+                if (h < min_hits_fired)  min_hits_fired = h;
+            }
+        }
+    }
+
+    /* Mean (integer: total_hits / fired_pixels) */
+    uint64_t mean_hits = (fired_pixels > 0) ? (total_hits / (uint64_t)fired_pixels) : 0;
+
+    /* Variance and std dev — computed in integer arithmetic, no -lm needed.
+     * Uses sum of squared deviations from mean, divided by (n-1). */
+    uint64_t sum_sq_diff = 0;
+    if (fired_pixels > 1) {
+        for (int y = 0; y < SENSOR_HEIGHT; y++) {
+            for (int x = 0; x < SENSOR_WIDTH; x++) {
+                uint64_t h = g_hit_map[y][x];
+                if (h > 0) {
+                    uint64_t diff = (h >= mean_hits) ? (h - mean_hits)
+                                                     : (mean_hits - h);
+                    sum_sq_diff += diff * diff;
+                }
+            }
+        }
+    }
+    uint64_t variance  = (fired_pixels > 1) ? sum_sq_diff / (uint64_t)(fired_pixels - 1) : 0;
+    uint64_t std_hits  = isqrt(variance);
+
+    fprintf(f, "SUMMARY\n");
+    fprintf(f, "  Total pixels         : %d\n",  NUM_PIXELS);
+    fprintf(f, "  Fired pixels         : %d  (%.2f%%)\n",
+            fired_pixels, 100.0 * fired_pixels / NUM_PIXELS);
+    fprintf(f, "  Silent pixels        : %d  (%.2f%%)\n",
+            NUM_PIXELS - fired_pixels,
+            100.0 * (NUM_PIXELS - fired_pixels) / NUM_PIXELS);
+    fprintf(f, "  Total hits           : %lu\n", (unsigned long)total_hits);
+    if (fired_pixels > 0) {
+        fprintf(f, "  Hit count per fired pixel:\n");
+        fprintf(f, "    min  = %lu\n", (unsigned long)min_hits_fired);
+        fprintf(f, "    max  = %lu\n", (unsigned long)max_hits);
+        fprintf(f, "    mean = %lu  (integer)\n", (unsigned long)mean_hits);
+        fprintf(f, "    std  = %lu  (integer floor)\n", (unsigned long)std_hits);
+    }
+    fprintf(f, "\n-------------------------------------------------------------\n");
+    fprintf(f, "FIRED PIXELS  (X  Y  HITS)\n");
+    fprintf(f, "-------------------------------------------------------------\n");
+
+    /* --- Per-pixel fired list ------------------------------------------- */
+    for (int y = 0; y < SENSOR_HEIGHT; y++) {
+        for (int x = 0; x < SENSOR_WIDTH; x++) {
+            if (g_hit_map[y][x] > 0) {
+                fprintf(f, "%3d  %3d  %lu\n",
+                        x, y, (unsigned long)g_hit_map[y][x]);
+            }
+        }
+    }
+
+    fprintf(f, "\n=============================================================\n");
+    fprintf(f, "  END OF REPORT\n");
+    fprintf(f, "=============================================================\n");
+
+    fclose(f);
+    printf("[OUT] TXT saved: %s\n", filename);
+    return 0;
+}
+
+/* =========================================================================
+ * configure
+ *
+ * Sets all DACs. All 65 536 pixels are configured with:
+ *   - trim = NEUTRAL_TRIM (7) — midpoint, no correction applied yet
+ *   - test-enable bit SET    — pixel receives internal test pulses
+ *   - mask bit CLEAR         — pixel is active
+ *
+ * Pixel byte value = (1 << 5) | NEUTRAL_TRIM = 0x27
+ * ====================================================================== */
+void configure(katherine_config_t *config, int vtp_fine,
+               int vthreshold_fine, int vthreshold_coarse)
+{
+    memset(config, 0, sizeof(*config));
+
+    config->bias_id                          = 0;
+    config->acq_time                         = 1e8;   /* 100 ms — confirmed (units: nanoseconds) */
+    config->no_frames                        = 1;
+    config->bias                             = 155;   /* sensor bias voltage */
+
+    config->delayed_start                    = false;
+
+    config->start_trigger.enabled            = false;
+    config->start_trigger.channel            = 0;
+    config->start_trigger.use_falling_edge   = false;
+    config->stop_trigger.enabled             = false;
+    config->stop_trigger.channel             = 0;
+    config->stop_trigger.use_falling_edge    = false;
+
+    config->gray_disable                     = true;
+    config->polarity_holes                   = true;
+    config->phase                            = PHASE_1;
+    config->freq                             = FREQ_40;
+
+    /* DAC values */
+    config->dacs.named.Ibias_Preamp_ON       = 128;
+    config->dacs.named.Ibias_Preamp_OFF      = 8;
+    config->dacs.named.VPReamp_NCAS          = 128;
+    config->dacs.named.Ibias_Ikrum           = 15;
+    config->dacs.named.Vfbk                  = 164;
+    config->dacs.named.Vthreshold_fine       = vthreshold_fine;
+    config->dacs.named.Vthreshold_coarse     = vthreshold_coarse;
+    config->dacs.named.Ibias_DiscS1_ON       = 100;
+    config->dacs.named.Ibias_DiscS1_OFF      = 8;
+    config->dacs.named.Ibias_DiscS2_ON       = 128;
+    config->dacs.named.Ibias_DiscS2_OFF      = 8;
+    config->dacs.named.Ibias_PixelDAC        = 100;
+    config->dacs.named.Ibias_TPbufferIn      = 128;
+    config->dacs.named.Ibias_TPbufferOut     = 128;
+    config->dacs.named.VTP_coarse            = 128;
+    config->dacs.named.VTP_fine              = vtp_fine;
+    config->dacs.named.Ibias_CP_PLL          = 128;
+    config->dacs.named.PLL_Vcntrl            = 128;
+
+    /*
+     * Per-pixel config: trim=7 + test-enable.
+     *
+     * Byte = (test_enable << 5) | trim
+     *      = (1 << 5) | 7
+     *      = 0x27
+     *
+     * This is the NEUTRAL baseline — equal trim headroom in both directions,
+     * test pulse routing enabled for every pixel.
+     */
+    const uint8_t pixel_byte = (uint8_t)((1u << 5) | (NEUTRAL_TRIM & 0x0F));
+    memset(&config->pixel_config, 0, sizeof(config->pixel_config));
+    for (int i = 0; i < NUM_PIXELS; i++) {
+        write_pixel_bmc(&config->pixel_config, i, pixel_byte);
+    }
+
+    printf("[CFG] VTP_fine=%d  Vth_fine=%d  Vth_coarse=%d  trim=%d (all pixels)\n",
+           vtp_fine, vthreshold_fine, vthreshold_coarse, NEUTRAL_TRIM);
+}
+
+/* =========================================================================
+ * Device info helpers
+ * ====================================================================== */
+
+void get_chip_id(katherine_device_t *device)
+{
+    char chip_id[KATHERINE_CHIP_ID_STR_SIZE];
+    int res = katherine_get_chip_id(device, chip_id);
+    if (res != 0) {
+        printf("Cannot get chip ID.\nReason: %s\n", strerror(res)); exit(2);
+    }
+    printf("Chip ID: %s\n", chip_id);
+}
+
+void get_comm_status(katherine_device_t *device)
+{
+    katherine_comm_status_t s;
+    int res = katherine_get_comm_status(device, &s);
+    if (res != 0) {
+        printf("Cannot get comm status.\nReason: %s\n", strerror(res)); exit(8);
+    }
+    printf("Comm Status: lines=0x%x  rate=%u Mbps  chip=%s\n",
+           s.comm_lines_mask, s.data_rate, s.chip_detected ? "Yes" : "No");
+}
+
+void get_readout_temp(katherine_device_t *device)
+{
+    float t;
+    int res = katherine_get_readout_temperature(device, &t);
+    if (res != 0) {
+        printf("Cannot get readout temperature.\nReason: %s\n", strerror(res)); exit(8);
+    }
+    printf("Readout temperature: %.2f C\n", t);
+}
+
+void get_sensor_temp(katherine_device_t *device)
+{
+    float t;
+    int res = katherine_get_sensor_temperature(device, &t);
+    if (res != 0) {
+        printf("Cannot get sensor temperature.\nReason: %s\n", strerror(res)); exit(9);
+    }
+    printf("Sensor temperature: %.2f C\n", t);
+}
+
+void digital_test(katherine_device_t *device)
+{
+    int res = katherine_perform_digital_test(device);
+    if (res != 0) {
+        printf("Digital test failed!\nReason: %s\n", strerror(res)); exit(10);
+    }
+    printf("Digital test passed.\n");
+}
+
+void adc_voltage(katherine_device_t *device)
+{
+    float v;
+    int res = katherine_get_adc_voltage(device, 0, &v);
+    if (res != 0) {
+        printf("ADC voltage test failed!\nReason: %s\n", strerror(res)); exit(11);
+    }
+    printf("ADC voltage: %.4f V\n", v);
+}
+
+/* =========================================================================
+ * run_single_injection
+ *
+ * Fires a single fixed-charge injection burst at ALL pixels simultaneously
+ * and records which pixels responded in g_hit_map[][].
+ *
+ * Steps:
+ *   1. Configure chip (DACs + all-pixel trim=7/test-enable)
+ *   2. Set TPX3_REG_TEST_PULSE_METHOD = 1  (internal generator)
+ *   3. Set TPX3_REG_NUMBER_TEST_PULSES     (how many pulses to fire)
+ *   4. Init acquisition handle (once)
+ *   5. Begin acquisition with internal test pulse trigger
+ *   6. Wait for pulses to propagate
+ *   7. Read data → pixels_received() fills g_hit_map
+ *   8. Fini acquisition handle
+ * ====================================================================== */
+int run_single_injection(katherine_device_t *device)
+{
+    printf("\n=== Single Charge Injection ===\n");
+    printf("  VTP_fine             : %d\n", INJECT_VTP_FINE);
+    printf("  Vthreshold_fine      : %d\n", INJECT_VTHRESHOLD_FINE);
+    printf("  Vthreshold_coarse    : %d\n", INJECT_VTHRESHOLD_COARSE);
+    printf("  Num pulses           : %d\n", INJECT_NUM_PULSES);
+    printf("  Trim (all pixels)    : %d\n\n", NEUTRAL_TRIM);
+
+    katherine_config_t config;
+    configure(&config,
+              INJECT_VTP_FINE,
+              INJECT_VTHRESHOLD_FINE,
+              INJECT_VTHRESHOLD_COARSE);
+
     int res;
 
-    res = katherine_set_sensor_register(dev, TPX3_REG_TEST_PULSE_METHOD, 1);
-    if (res) return res;
+    /* ------------------------------------------------------------------ *
+     * NOTE: TPX3_REG_TEST_PULSE_METHOD and TPX3_REG_NUMBER_TEST_PULSES   *
+     * are intentionally NOT written here.                                 *
+     *                                                                     *
+     * With the internal generator (method=1), writing                    *
+     * TPX3_REG_NUMBER_TEST_PULSES arms and fires the pulses immediately.  *
+     * If that happens before acquisition_begin(), the acquisition window  *
+     * is not yet open and every hit is dropped.                           *
+     *                                                                     *
+     * Both register writes are deferred to after acquisition_begin()      *
+     * so the pulses fire into an already-open window.                     *
+     * ------------------------------------------------------------------ */
 
-    res = katherine_set_sensor_register(dev, TPX3_REG_SENSE_DAC_SELECTOR, pixel_idx);
-    if (res) return res;
-
-    res = katherine_set_sensor_register(dev, TPX3_REG_NUMBER_TEST_PULSES, pulse_value);
-    if (res) return res;
-
+    /* --- Initialise acquisition handle ---------------------------------- */
     katherine_acquisition_t acq;
-    res = katherine_acquisition_init(&acq, dev, NULL,
-                                     KATHERINE_MD_SIZE * 34952533,
-                                     sizeof(katherine_px_f_toa_tot_t) * NUM_PIXELS,
-                                     5000, 60000);
-    if (res) return res;
+    res = katherine_acquisition_init(&acq, device, NULL,
+                                     ACQ_MD_SLOTS,
+                                     ACQ_PIXEL_SLOTS,
+                                     500,    /* report period ms */
+                                     30000); /* timeout ms       */
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] katherine_acquisition_init: %s\n", strerror(res));
+        return res;
+    }
 
-    res = katherine_acquisition_begin(&acq, config,
+    memset(&acq.handlers, 0, sizeof(acq.handlers));
+    acq.handlers.pixels_received = pixels_received;
+    acq.handlers.frame_started   = frame_started;
+    acq.handlers.frame_ended     = frame_ended;
+    acq.handlers.data_received   = data_received;
+
+    memset(g_hit_map, 0, sizeof(g_hit_map));
+
+    /* --- Open the acquisition window first ------------------------------ */
+    res = katherine_acquisition_begin(&acq, &config,
                                       READOUT_DATA_DRIVEN,
-                                      ACQUISITION_MODE_ONLY_TOA,
-                                      true, true);
-    if (res) {
+                                      ACQUISITION_MODE_TOA_TOT,
+                                      false,
+                                      true);
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] katherine_acquisition_begin: %s\n", strerror(res));
         katherine_acquisition_fini(&acq);
         return res;
     }
 
-    usleep(INJECTION_DELAY_US);
-
-    res = katherine_acquisition_read(&acq);
-    katherine_acquisition_fini(&acq);
-    if (res) return res;
-
-    // Simulation placeholder: replace with real fired-pixel check from acq data
-    return (pulse_value > 100) ? 1 : 0;
-}
-
-// ---------------------------------------------------------------------------
-// main
-// ---------------------------------------------------------------------------
-int main() {
-    DEBUG_PRINT("Starting real charge injection and equalization...");
-
-    katherine_device_t device;
-    int res = katherine_device_init(&device, "192.168.1.218");
-    if (res) {
-        fprintf(stderr, "Failed to initialise Katherine device handle: %s\n",
-                strerror(res));
-        return 1;
-    }
-
-    // Verify the device is reachable and the chip is responsive before doing
-    // anything else. Aborts if any check fails or returns implausible values.
-    res = check_device_connection(&device);
-    if (res) {
-        fprintf(stderr, "[ABORT] Device connection check failed — "
-                        "not proceeding with charge injection.\n");
-        katherine_device_fini(&device);
+    /* --- NOW arm the internal pulse generator — window is open ---------- *
+     *                                                                      *
+     * Order matters:                                                       *
+     *   1. Set method=1 first   → selects internal generator              *
+     *   2. Set pulse count      → this arms + fires the burst             *
+     *                                                                      *
+     * The 100 ms acq_time gives plenty of room for INJECT_NUM_PULSES      *
+     * to complete before acquisition_read() drains the buffer.            *
+     * ------------------------------------------------------------------  */
+    res = katherine_set_sensor_register(device, TPX3_REG_TEST_PULSE_METHOD, 1);
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] TPX3_REG_TEST_PULSE_METHOD: %s\n", strerror(res));
+        katherine_acquisition_abort(&acq);
+        katherine_acquisition_fini(&acq);
         return res;
     }
 
-    katherine_config_t config;
-    memset(&config, 0, sizeof(config));
-    // Populate config as needed (bias voltage, thresholds, pixel config, etc.)
+    res = katherine_set_sensor_register(device, TPX3_REG_NUMBER_TEST_PULSES,
+                                        INJECT_NUM_PULSES);
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] TPX3_REG_NUMBER_TEST_PULSES: %s\n", strerror(res));
+        katherine_acquisition_abort(&acq);
+        katherine_acquisition_fini(&acq);
+        return res;
+    }
 
-    katherine_px_config_t px_config;
-    memset(&px_config, 0, sizeof(px_config));
+    /* --- Wait for the burst to complete before draining the buffer ------ */
+    //printf("  Waiting %d µs for pulses to propagate...\n", INJECTION_DELAY_US);
+    //usleep(INJECTION_DELAY_US);
 
-    // Per-pixel threshold measurement and equalization
-    for (int i = 0; i < NUM_PIXELS; i++) {
-        int threshold_found = 0;
-        for (uint8_t pulse = MIN_TEST_PULSE; pulse <= MAX_TEST_PULSE; pulse += TEST_PULSE_STEP) {
-            int fired = inject_charge_and_read(&device, &config, i, pulse);
-            if (fired) {
-                write_pixel_bmc(&px_config, i, pulse);
-                threshold_found = 1;
-                break;
+    /* --- Read data — pixels_received() fills g_hit_map ------------------ */
+    res = katherine_acquisition_read(&acq);
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] katherine_acquisition_read: %s\n", strerror(res));
+        katherine_acquisition_fini(&acq);
+        return res;
+    }
+
+    katherine_acquisition_fini(&acq);
+
+    int fired = 0;
+    uint64_t total_hits = 0;
+    for (int y = 0; y < SENSOR_HEIGHT; y++) {
+        for (int x = 0; x < SENSOR_WIDTH; x++) {
+            if (g_hit_map[y][x] > 0) {
+                fired++;
+                total_hits += g_hit_map[y][x];
             }
         }
-        if (!threshold_found) {
-            write_pixel_bmc(&px_config, i, MAX_TEST_PULSE);
-        }
-
-        if (i < 5) {
-            DEBUG_PRINT("Pixel %d threshold set to %d", i,
-                        (int)(px_config.words[(64 * (i % 256)) + ((255 - (i / 256)) >> 2)] >>
-                        (8 * (3 - ((255 - (i / 256)) % 4))) & 0xFF));
-        }
     }
+    printf("\n[INJ] Done. Fired pixels: %d / %d  |  Total hits: %lu\n\n",
+           fired, NUM_PIXELS, (unsigned long)total_hits);
 
-    res = save_bmc_file(OUTPUT_FILENAME, &px_config);
-    if (res) {
-        fprintf(stderr, "Error saving BMC file: %d\n", res);
-        katherine_device_fini(&device);
+    res = save_bmc_file(OUTPUT_BMC_FILE, &config.pixel_config);
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] Failed to save BMC file.\n");
         return res;
     }
 
-    DEBUG_PRINT("Charge injection and equalization completed successfully.");
+    res = save_txt_file(OUTPUT_TXT_FILE,
+                        INJECT_VTP_FINE,
+                        INJECT_VTHRESHOLD_FINE,
+                        INJECT_VTHRESHOLD_COARSE,
+                        INJECT_NUM_PULSES);
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] Failed to save TXT file.\n");
+        return res;
+    }
+
+    return 0;
+}
+
+/* =========================================================================
+ * main
+ * ====================================================================== */
+int main(void)
+{
+    DEBUG_PRINT("chargeInjection_step1 starting...");
+
+    int res;
+    katherine_device_t device;
+
+    /* Connection with retry */
+    int retries = 3;
+    while (retries > 0) {
+        printf("Attempting to connect to %s...\n", REMOTE_ADDR);
+        res = katherine_device_init(&device, REMOTE_ADDR);
+        if (res == 0) break;
+        printf("Connection failed: %s. Retrying... (%d left)\n",
+               strerror(res), --retries);
+        sleep(1);
+    }
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] Cannot connect after %d attempts.\n", 3);
+        return 1;
+    }
+    printf("Connected successfully.\n\n");
+
+    /* Hardware checks */
+    get_comm_status(&device);
+    get_chip_id(&device);
+    get_readout_temp(&device);
+    get_sensor_temp(&device);
+    digital_test(&device);
+    adc_voltage(&device);
+
+    /* Single injection */
+    res = run_single_injection(&device);
+    if (res != 0) {
+        fprintf(stderr, "[ERROR] Injection failed: %s\n", strerror(res));
+    }
 
     katherine_device_fini(&device);
-    return 0;
+
+    printf("\nDone. Outputs:\n");
+    printf("  %s  — pixel config (trim=7 baseline)\n", OUTPUT_BMC_FILE);
+    printf("  %s  — hit map with statistics\n",        OUTPUT_TXT_FILE);
+
+    return (res == 0) ? 0 : 1;
 }

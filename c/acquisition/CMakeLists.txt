@@ -1,2 +1,2 @@
 add_executable(chargeInjection chargeInjection.c)
-target_link_libraries(chargeInjection katherine)
+target_link_libraries(chargeInjection katherine m)
