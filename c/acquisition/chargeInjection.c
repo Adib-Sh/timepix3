@@ -45,10 +45,10 @@ typedef katherine_px_f_toa_tot_t px_t;
 /* =========================================================================
  * *** TUNABLE PARAMETERS — adjust these before each run ***
  * ====================================================================== */
-#define INJECT_VTP_FINE          256   /* Test pulse amplitude    (0–511)  */
-#define INJECT_VTHRESHOLD_FINE   120   /* Global threshold THL    (0–511)  */
-#define INJECT_VTHRESHOLD_COARSE   7   /* Coarse threshold — usually fixed */
-#define INJECT_NUM_PULSES        100   /* Pulses fired per acquisition     */
+#define INJECT_VTP_FINE          500   /* Test pulse amplitude    (0–511)  */
+#define INJECT_VTHRESHOLD_FINE   0   /* Global threshold THL    (0–511)  */
+#define INJECT_VTHRESHOLD_COARSE   0   /* Coarse threshold — usually fixed */
+#define INJECT_NUM_PULSES        10000   /* Pulses fired per acquisition     */
 
 /* =========================================================================
  * Constants
@@ -59,7 +59,7 @@ static const char *REMOTE_ADDR = "192.168.1.218";
 #define SENSOR_HEIGHT   256
 #define NUM_PIXELS      (SENSOR_WIDTH * SENSOR_HEIGHT)   /* 65 536 */
 
-#define NEUTRAL_TRIM    7    /* Midpoint of 4-bit trim range (0–15).
+#define NEUTRAL_TRIM    1    /* Midpoint of 4-bit trim range (0–15).
                               * Gives equal headroom for correction in both
                               * directions during later equalization steps. */
 
@@ -306,10 +306,10 @@ void configure(katherine_config_t *config, int vtp_fine,
 {
     memset(config, 0, sizeof(*config));
 
-    config->bias_id                          = 0;
-    config->acq_time                         = 1e8;   /* 100 ms — confirmed (units: nanoseconds) */
+    config->bias_id                          = 1;
+    config->acq_time                         = 1e9;   /* 100 ms — confirmed (units: nanoseconds) */
     config->no_frames                        = 1;
-    config->bias                             = 155;   /* sensor bias voltage */
+    config->bias                             = 100;   /* sensor bias voltage */
 
     config->delayed_start                    = false;
 
@@ -321,7 +321,7 @@ void configure(katherine_config_t *config, int vtp_fine,
     config->stop_trigger.use_falling_edge    = false;
 
     config->gray_disable                     = true;
-    config->polarity_holes                   = true;
+    config->polarity_holes                   = false;
     config->phase                            = PHASE_1;
     config->freq                             = FREQ_40;
 
@@ -534,8 +534,8 @@ int run_single_injection(katherine_device_t *device)
     }
 
     /* --- Wait for the burst to complete before draining the buffer ------ */
-    //printf("  Waiting %d µs for pulses to propagate...\n", INJECTION_DELAY_US);
-    //usleep(INJECTION_DELAY_US);
+    printf("  Waiting %d µs for pulses to propagate...\n", INJECTION_DELAY_US);
+    usleep(INJECTION_DELAY_US);
 
     /* --- Read data — pixels_received() fills g_hit_map ------------------ */
     res = katherine_acquisition_read(&acq);
