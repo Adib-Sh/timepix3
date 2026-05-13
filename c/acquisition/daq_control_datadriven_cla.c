@@ -73,7 +73,7 @@ void display_detailed_help() {
     printf("  -a, --address=IP            IP address of the Timepix3 device (default: 192.168.1.218).\n"); 
     printf("  -o, --output=FILE           Output HDF5 file name (default: pixel_data_YYYYMMDD_HHMMSS.h5).\n");
     printf("  -t, --acqtime=TIME          Acquisition time in nanoseconds (default: 1e9).\n");
-    printf("  -p, --polarity=MODE       Polarity mode: 0 for electrons, 1 for holes (default: 1).\n");
+    printf("  -p, --polarity=MODE         Polarity mode: 0 for electrons, 1 for holes (default: 1).\n");
     printf("  -F, --frequency=FREQ        Clock frequency in MHz (40, 80, 160) (default: 40).\n");
     printf("  -v, --vth-fine=VALUE        Vthreshold_fine DAC value (default: 442).\n");
     printf("  -V, --vth-coarse=VALUE      Vthreshold_coarse DAC value (default: 7).\n");

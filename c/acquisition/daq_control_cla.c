@@ -60,7 +60,7 @@ struct arguments {
 #define DEFAULT_FREQUENCY 40
 #define DEFAULT_VTH_FINE 424
 #define DEFAULT_VTH_COARSE 7
-#define DEFAULT_ACQ_MODE 1
+#define DEFAULT_ACQ_MODE 0
 #define DEFAULT_READOUT_MODE 0
 
 
@@ -82,7 +82,7 @@ void display_detailed_help() {
     printf("  -F, --frequency=FREQ        Clock frequency in MHz (40, 80, 160) (default: 40).\n");
     printf("  -v, --vth-fine=VALUE        Vthreshold_fine DAC value (default: 424).\n");
     printf("  -V, --vth-coarse=VALUE      Vthreshold_coarse DAC value (default: 7).\n");
-    printf("  -m, --acq-mode=MODE         Acquisition mode: 0 for TOA_TOT, 1 for TOA, 2 for EVENT_ITOT (default: 1).\n");
+    printf("  -m, --acq-mode=MODE         Acquisition mode: 0 for TOA_TOT, 1 for TOA, 2 for EVENT_ITOT (default: 0).\n");
     printf("  -r, --readout-mode=MODE     Readout mode: 0 for data-driven, 1 for frame (default: 0).\n");
     printf("  -h, --help                  Display this help message and exit.\n");
     printf("  -H, --detailed-help         Display detailed help information about parameters.\n\n");
@@ -159,8 +159,8 @@ static error_t parse_opt(int key, char *arg, struct argp_state *state) {
             args->acq_mode = atoi(arg);
             // Validate acquisition mode
             if (args->acq_mode < 0 || args->acq_mode > 2) {
-                fprintf(stderr, "Invalid acquisition mode: %d. Using default (1=TOA).\n", args->acq_mode);
-                args->acq_mode = 1; // Reset to default
+                fprintf(stderr, "Invalid acquisition mode: %d. Using default (0=TOA_TOT).\n", args->acq_mode);
+                args->acq_mode = 0; // Reset to default
             }
             break;
         case 'r':
